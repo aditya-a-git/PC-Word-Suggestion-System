@@ -1,0 +1,30 @@
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.0.31903.59
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "PCWord.Core", "src\PCWord.Core\PCWord.Core.csproj", "{B7C6322E-7814-4C66-9767-3B05A8B65401}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "PCWord.Stage0", "src\PCWord.Stage0\PCWord.Stage0.csproj", "{397E59CB-C3D7-4B82-8B3A-54E770F09482}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "PCWord.Tests", "tests\PCWord.Tests\PCWord.Tests.csproj", "{88BD8931-4FC1-47AE-8CC8-0877220CF042}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{B7C6322E-7814-4C66-9767-3B05A8B65401}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{B7C6322E-7814-4C66-9767-3B05A8B65401}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{B7C6322E-7814-4C66-9767-3B05A8B65401}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{B7C6322E-7814-4C66-9767-3B05A8B65401}.Release|Any CPU.Build.0 = Release|Any CPU
+		{397E59CB-C3D7-4B82-8B3A-54E770F09482}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{397E59CB-C3D7-4B82-8B3A-54E770F09482}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{397E59CB-C3D7-4B82-8B3A-54E770F09482}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{397E59CB-C3D7-4B82-8B3A-54E770F09482}.Release|Any CPU.Build.0 = Release|Any CPU
+		{88BD8931-4FC1-47AE-8CC8-0877220CF042}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{88BD8931-4FC1-47AE-8CC8-0877220CF042}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{88BD8931-4FC1-47AE-8CC8-0877220CF042}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{88BD8931-4FC1-47AE-8CC8-0877220CF042}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+EndGlobal
