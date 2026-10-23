@@ -20,9 +20,17 @@ internal sealed class ControlledEditorForm : Form
         toolbar.Controls.Add(sample); toolbar.Controls.Add(sensitive); toolbar.Controls.Add(replacement); toolbar.Controls.Add(apply);
         var bottom = new Panel { Dock = DockStyle.Bottom, Height = 52, Padding = new Padding(8) }; bottom.Controls.Add(report);
         Controls.Add(editor); Controls.Add(bottom); Controls.Add(toolbar);
-        editor.TextChanged += (_, _) => UpdateReport(); editor.SelectionChanged += (_, _) => UpdateReport(); editor.Enter += (_, _) => UpdateReport(); editor.Leave += (_, _) => UpdateReport();
+        editor.TextChanged += (_, _) => UpdateReport();
+        editor.KeyUp += (_, _) => UpdateReport();
+        editor.MouseUp += (_, _) => UpdateReport();
+        editor.Enter += (_, _) => UpdateReport();
+        editor.Leave += (_, _) => UpdateReport();
         sensitive.CheckedChanged += (_, _) => UpdateReport(); apply.Click += (_, _) => ApplyEdit();
-        sample.Click += (_, _) => { editor.Text = "Stage 0 sample: controlled editor context."; editor.SelectionStart = editor.Text.IndexOf("controlled", StringComparison.Ordinal); editor.SelectionLength = 0; editor.Focus(); };
+        sample.Click += (_, _) =>
+        {
+            editor.Text = "Stage 0 sample: controlled editor context.";
+            editor.SelectionStart = editor.Text.IndexOf("controlled", StringComparison.Ordinal); editor.SelectionLength = 0; editor.Focus();
+        };
         UpdateReport();
     }
 

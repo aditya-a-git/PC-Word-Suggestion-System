@@ -19,27 +19,93 @@ public sealed record TextContext(string Text, int SelectionStart, int SelectionL
         return new TextContext(text, selectionStart, selectionLength, selectionStart, hasFocus, isSensitive);
     }
 
+
     public string CurrentWord
     {
         get
         {
             if (!IsEligible) return string.Empty;
-            int start = Caret;
-            while (start > 0)
-            {
-                int previous = PreviousRuneStart(Text, start);
-                if (!IsWordRune(ReadRune(Text, previous, start - previous))) break;
-                start = previous;
-            }
-            int end = Caret;
-            while (end < Text.Length)
-            {
-                int length = RuneLengthAt(Text, end);
-                if (!IsWordRune(ReadRune(Text, end, length))) break;
-                end += length;
-            }
-            return Text[start..Caret];
+
+            var (start, length) = GetWordSpan(Caret);
+            return length == 0 ? string.Empty : Text.Substring(start, length);
         }
+    }
+
+    public string TypedPrefix
+    {
+        get
+        {
+            if (!IsEligible) return string.Empty;
+
+            var (start, length) = GetWordSpan(Caret);
+            if (length == 0) return string.Empty;
+
+            int prefixEnd = Math.Clamp(Caret, start, start + length);
+            return Text[start..prefixEnd];
+        }
+    }
+
+    private (int Start, int Length) GetWordSpan(int caret)
+    {
+        if (caret < 0 || caret > Text.Length)
+            return (caret, 0);
+
+        int start;
+
+        // Prefer the word to the left when the caret is at its end
+        // or somewhere inside it.
+        if (caret > 0)
+        {
+            int previous = PreviousRuneStart(Text, caret);
+            if (IsWordRune(ReadRune(Text, previous, caret - previous)))
+            {
+                start = previous;
+
+                while (start > 0)
+                {
+                    previous = PreviousRuneStart(Text, start);
+                    if (!IsWordRune(ReadRune(Text, previous, start - previous)))
+                        break;
+
+                    start = previous;
+                }
+
+                int end = caret;
+                while (end < Text.Length)
+                {
+                    int runeLength = RuneLengthAt(Text, end);
+                    if (!IsWordRune(ReadRune(Text, end, runeLength)))
+                        break;
+
+                    end += runeLength;
+                }
+
+                return (start, end - start);
+            }
+        }
+
+        // At the beginning of a word, find the word to the right.
+        if (caret < Text.Length)
+        {
+            int runeLength = RuneLengthAt(Text, caret);
+            if (IsWordRune(ReadRune(Text, caret, runeLength)))
+            {
+                int end = caret;
+
+                while (end < Text.Length)
+                {
+                    runeLength = RuneLengthAt(Text, end);
+                    if (!IsWordRune(ReadRune(Text, end, runeLength)))
+                        break;
+
+                    end += runeLength;
+                }
+
+                return (caret, end - caret);
+            }
+        }
+
+        return (caret, 0);
     }
 
     public string PrecedingContext(int maximumCharacters = 128)
@@ -52,24 +118,33 @@ public sealed record TextContext(string Text, int SelectionStart, int SelectionL
     }
 
     /// <summary>Replaces the current selection (or word when there is no selection) with an explicit accepted edit.</summary>
+
     public (string Text, int Caret) ApplyExplicitEdit(string replacement)
     {
         ArgumentNullException.ThrowIfNull(replacement);
-        if (!HasFocus || IsSensitive || Caret < 0 || Caret > Text.Length) throw new InvalidOperationException("The field is not eligible for editing.");
-        int start = Caret, length = 0;
-        if (HasSelection) { start = SelectionStart; length = SelectionLength; }
+
+        if (!HasFocus || IsSensitive || Caret < 0 || Caret > Text.Length)
+            throw new InvalidOperationException(
+                "The field is not eligible for editing.");
+
+        int start;
+        int length;
+
+        if (HasSelection)
+        {
+            start = SelectionStart;
+            length = SelectionLength;
+        }
         else
         {
-            start = Caret;
-            while (start > 0)
-            {
-                int previous = PreviousRuneStart(Text, start);
-                if (!IsWordRune(ReadRune(Text, previous, start - previous))) break;
-                start = previous;
-            }
-            length = Caret - start;
+            (start, length) = GetWordSpan(Caret);
         }
-        string updated = string.Concat(Text.AsSpan(0, start), replacement, Text.AsSpan(start + length));
+
+        string updated = string.Concat(
+            Text.AsSpan(0, start),
+            replacement,
+            Text.AsSpan(start + length));
+
         return (updated, start + replacement.Length);
     }
 
