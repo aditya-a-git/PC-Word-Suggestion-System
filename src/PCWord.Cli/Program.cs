@@ -6,8 +6,8 @@ var dictionaryPath = args.Length > 0
     ? Path.GetFullPath(args[0])
     : Path.GetFullPath(
         Path.Combine(
-            AppContext.BaseDirectory,
-            "../../../../Dictionary/sample.tsv"));
+    AppContext.BaseDirectory,
+    "../../../../PCWord.Prediction/Dictionary/sample.tsv"));
 
 if (!File.Exists(dictionaryPath))
 {
