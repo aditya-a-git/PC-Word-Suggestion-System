@@ -1,4 +1,3 @@
-
 using PCWord.Prediction.Dictionary;
 
 namespace PCWord.Prediction.Ranking;
@@ -25,6 +24,10 @@ public sealed class CandidateRanker
         return _index.FindByPrefix(prefix)
             .OrderByDescending(entry => entry.Frequency)
             .ThenBy(entry => entry.Word, StringComparer.OrdinalIgnoreCase)
+            .ThenBy(entry => entry.Word, StringComparer.Ordinal)
+            .DistinctBy(
+                entry => entry.Word,
+                StringComparer.OrdinalIgnoreCase)
             .Take(maxResults)
             .ToArray();
     }
