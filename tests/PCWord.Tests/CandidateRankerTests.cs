@@ -1,4 +1,3 @@
-
 using PCWord.Prediction.Dictionary;
 using PCWord.Prediction.Ranking;
 using Xunit;
@@ -55,6 +54,7 @@ public class CandidateRankerTests
         var ranker = CreateRanker();
 
         Assert.Empty(ranker.GetSuggestions(""));
+        Assert.Empty(ranker.GetSuggestions("   "));
     }
 
     [Fact]
@@ -75,6 +75,14 @@ public class CandidateRankerTests
     }
 
     [Fact]
+    public void GetSuggestions_PunctuationBoundaryReturnsNoResults()
+    {
+        var ranker = CreateRanker();
+
+        Assert.Empty(ranker.GetSuggestions("pro."));
+    }
+
+    [Fact]
     public void GetSuggestions_TiesAreAlphabetical()
     {
         var entries = new[]
@@ -91,5 +99,25 @@ public class CandidateRankerTests
         Assert.Equal(
             new[] { "apple", "application", "apply" },
             suggestions.Select(entry => entry.Word));
+    }
+
+    [Fact]
+    public void GetSuggestions_DeduplicatesCaseInsensitiveWordsKeepingHighestFrequency()
+    {
+        var entries = new[]
+        {
+            new DictionaryEntry("apple", 50),
+            new DictionaryEntry("APPLE", 90),
+            new DictionaryEntry("application", 80)
+        };
+
+        var ranker = new CandidateRanker(new PrefixIndex(entries));
+
+        var suggestions = ranker.GetSuggestions("app", 10);
+
+        Assert.Equal(2, suggestions.Count);
+        Assert.Equal("APPLE", suggestions[0].Word);
+        Assert.Equal(90, suggestions[0].Frequency);
+        Assert.Equal("application", suggestions[1].Word);
     }
 }

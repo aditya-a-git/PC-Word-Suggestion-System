@@ -1,0 +1,30 @@
+name: .NET build and tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  build-and-test:
+    runs-on: windows-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up .NET 10 SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Restore solution
+        run: dotnet restore .\PCWord.sln
+
+      - name: Build solution
+        run: dotnet build .\PCWord.sln --configuration Release --no-restore
+
+      - name: Run tests
+        run: dotnet test .\PCWord.sln --configuration Release --no-build --logger "console;verbosity=normal"
