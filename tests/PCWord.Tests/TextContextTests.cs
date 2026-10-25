@@ -109,7 +109,7 @@ public sealed class TextContextTests
 
 
     [Theory]
-    [InlineData("hello!", 5, "earth!", 11)]
+    [InlineData("hello!", 5, "earth!", 5)]
     [InlineData("hello world", 6, "hello earth", 11)]
     [InlineData("say he!", 6, "say hello!", 9)]
     public void ExplicitEditReplacesWordAndPreservesSuffix(
