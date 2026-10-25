@@ -1,4 +1,3 @@
-
 using System.Text;
 using PCWord.Prediction.Dictionary;
 using Xunit;
@@ -26,6 +25,17 @@ public class DictionaryTests
     }
 
     [Fact]
+    public void Load_UnicodeWords_PreservesText()
+    {
+        using var stream = CreateStream("café\t100\nnaïve\t80\n");
+
+        var entries = DictionaryLoader.Load(stream);
+
+        Assert.Equal(new[] { "café", "naïve" },
+            entries.Select(entry => entry.Word));
+    }
+
+    [Fact]
     public void Load_InvalidFrequency_Throws()
     {
         using var stream = CreateStream("apple\tzero\n");
@@ -34,10 +44,13 @@ public class DictionaryTests
             () => DictionaryLoader.Load(stream));
     }
 
-    [Fact]
-    public void Load_ZeroFrequency_Throws()
+    [Theory]
+    [InlineData("apple\t0\n")]
+    [InlineData("apple\t-1\n")]
+    [InlineData("apple\t1.5\n")]
+    public void Load_NonPositiveOrNonIntegerFrequency_Throws(string input)
     {
-        using var stream = CreateStream("apple\t0\n");
+        using var stream = CreateStream(input);
 
         Assert.Throws<InvalidDataException>(
             () => DictionaryLoader.Load(stream));
@@ -53,10 +66,22 @@ public class DictionaryTests
             () => DictionaryLoader.Load(stream));
     }
 
-    [Fact]
-    public void Load_MalformedRow_Throws()
+    [Theory]
+    [InlineData("apple 100\n")]
+    [InlineData("apple\t100\textra\n")]
+    [InlineData("new york\t100\n")]
+    public void Load_MalformedRows_Throws(string input)
     {
-        using var stream = CreateStream("apple 100\n");
+        using var stream = CreateStream(input);
+
+        Assert.Throws<InvalidDataException>(
+            () => DictionaryLoader.Load(stream));
+    }
+
+    [Fact]
+    public void Load_OverlongLine_Throws()
+    {
+        using var stream = CreateStream(new string('a', 257) + "\t1\n");
 
         Assert.Throws<InvalidDataException>(
             () => DictionaryLoader.Load(stream));
@@ -92,6 +117,64 @@ public class DictionaryTests
         var matches = index.FindByPrefix("PRO");
 
         Assert.Equal(2, matches.Count);
+    }
+
+    [Fact]
+    public void FindByPrefix_UnicodePrefixIsCaseInsensitive()
+    {
+        var index = new PrefixIndex(new[]
+        {
+            new DictionaryEntry("café", 100),
+            new DictionaryEntry("naïve", 80)
+        });
+
+        var matches = index.FindByPrefix("CAF");
+
+        Assert.Equal(new[] { "café" },
+            matches.Select(entry => entry.Word));
+    }
+
+    [Fact]
+    public void FindByPrefix_NumericPrefixWorks()
+    {
+        var index = new PrefixIndex(new[]
+        {
+            new DictionaryEntry("123abc", 100),
+            new DictionaryEntry("42", 80),
+            new DictionaryEntry("apple", 60)
+        });
+
+        var matches = index.FindByPrefix("12");
+
+        Assert.Equal(new[] { "123abc" },
+            matches.Select(entry => entry.Word));
+    }
+
+    [Fact]
+    public void FindByPrefix_PunctuationInsideWordIsPreserved()
+    {
+        var index = new PrefixIndex(new[]
+        {
+            new DictionaryEntry("can't", 100),
+            new DictionaryEntry("cannot", 80)
+        });
+
+        var matches = index.FindByPrefix("can'");
+
+        Assert.Equal(new[] { "can't" },
+            matches.Select(entry => entry.Word));
+    }
+
+    [Fact]
+    public void FindByPrefix_PunctuationAttachedToPrefixDoesNotMatch()
+    {
+        var index = new PrefixIndex(new[]
+        {
+            new DictionaryEntry("apple", 100),
+            new DictionaryEntry("application", 80)
+        });
+
+        Assert.Empty(index.FindByPrefix("app,"));
     }
 
     [Fact]
