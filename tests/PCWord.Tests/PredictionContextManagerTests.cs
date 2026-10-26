@@ -21,7 +21,7 @@ public sealed class PredictionContextManagerTests
     [Fact]
     public void PartialWordProducesCompletionPrefixAndBoundedContext()
     {
-        var manager = new PredictionContextManager(maximumPrecedingCharacters: 8, maximumFollowingCharacters: 3);
+        var manager = new PredictionContextManager(maximumPrecedingCharacters: 9, maximumFollowingCharacters: 3);
 
         Assert.True(manager.TryUpdate(Snapshot(1, "older hello dev", "eloper")));
 
@@ -150,10 +150,29 @@ public sealed class PredictionContextManagerTests
     }
 
     [Fact]
-    public void RejectsNegativeSelectionLength()
+    public void TypingBackspaceAndPunctuationProduceFreshContext()
+    {
+        var manager = new PredictionContextManager();
+
+        manager.TryUpdate(Snapshot(1, "hel"));
+        Assert.Equal("hel", manager.Current.Prefix);
+
+        manager.TryUpdate(Snapshot(2, "he"));
+        Assert.Equal("he", manager.Current.Prefix);
+
+        manager.TryUpdate(Snapshot(3, "hello "));
+        Assert.Equal(PredictionContextStatus.WordBoundary, manager.Current.Status);
+        Assert.Empty(manager.Current.Prefix);
+    }
+
+    [Fact]
+    public void RejectsNegativeSelectionLengthWithoutAdvancingVersion()
     {
         var manager = new PredictionContextManager();
         Assert.Throws<ArgumentOutOfRangeException>(() =>
-            manager.TryUpdate(Snapshot(1, "hello", selectionLength: -1)));
+            manager.TryUpdate(Snapshot(2, "hello", selectionLength: -1)));
+
+        Assert.True(manager.TryUpdate(Snapshot(1, "older but valid")));
+        Assert.Equal(1, manager.Current.Version);
     }
 }
