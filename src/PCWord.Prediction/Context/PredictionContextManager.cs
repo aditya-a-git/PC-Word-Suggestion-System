@@ -58,6 +58,9 @@ public sealed class PredictionContextManager
         if (snapshot.Version <= _lastVersion)
             return false;
 
+        if (snapshot.SelectionLength < 0)
+            throw new ArgumentOutOfRangeException(nameof(snapshot), "Selection length cannot be negative.");
+
         _lastVersion = snapshot.Version;
 
         bool fieldChanged = !StringComparer.Ordinal.Equals(_lastFieldId, snapshot.FieldId);
@@ -72,9 +75,6 @@ public sealed class PredictionContextManager
                 PredictionContextStatus.Unavailable, string.Empty, string.Empty, string.Empty);
             return true;
         }
-
-        if (snapshot.SelectionLength < 0)
-            throw new ArgumentOutOfRangeException(nameof(snapshot), "Selection length cannot be negative.");
 
         if (!snapshot.HasFocus ||
             string.IsNullOrWhiteSpace(snapshot.FieldId) ||
@@ -139,7 +139,8 @@ public sealed class PredictionContextManager
         return text[start..];
     }
 
-    private static bool IsWordRune(Rune rune) => Rune.IsLetterOrDigit(rune) || rune.Value == '_';
+    private static bool IsWordRune(Rune rune) =>
+        Rune.IsLetterOrDigit(rune) || rune.Value is '_' or '\'' or 0x2019;
 
     private static int PreviousRuneStart(string text, int index) =>
         index >= 2 && char.IsLowSurrogate(text[index - 1]) && char.IsHighSurrogate(text[index - 2])
