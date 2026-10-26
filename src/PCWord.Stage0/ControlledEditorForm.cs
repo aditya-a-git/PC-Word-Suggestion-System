@@ -20,7 +20,7 @@ internal sealed class ControlledEditorForm : Form
     private readonly TextBox replacement = new() { Width = 180, PlaceholderText = "Explicit replacement" };
     private readonly Button apply = new() { Text = "Apply explicit edit", AutoSize = true };
     private readonly Button sample = new() { Text = "Load sample text", AutoSize = true };
-    private readonly SuggestionPopupForm popup = new();
+    private readonly SuggestionPopupControl popup = new();
     private readonly SuggestionState suggestionState = new();
     private long contextVersion;
     private long suggestionVersion;
@@ -37,8 +37,13 @@ internal sealed class ControlledEditorForm : Form
         MinimumSize = new Size(760, 520);
         var toolbar = new FlowLayoutPanel { Dock = DockStyle.Top, AutoSize = true, Padding = new Padding(8), WrapContents = true };
         toolbar.Controls.Add(sample); toolbar.Controls.Add(sensitive); toolbar.Controls.Add(replacement); toolbar.Controls.Add(apply);
+        var editorHost = new Panel { Dock = DockStyle.Fill };
+        editor.Dock = DockStyle.Fill;
+        editorHost.Controls.Add(editor);
+        editorHost.Controls.Add(popup);
+
         var bottom = new Panel { Dock = DockStyle.Bottom, Height = 60, Padding = new Padding(8) }; bottom.Controls.Add(report);
-        Controls.Add(editor); Controls.Add(bottom); Controls.Add(toolbar);
+        Controls.Add(editorHost); Controls.Add(bottom); Controls.Add(toolbar);
 
         editor.TextChanged += (_, _) => { dismissedContextKey = null; UpdateReport(); RefreshSuggestions(); };
         editor.KeyUp += (_, _) => { UpdateReport(); RefreshSuggestions(); };
@@ -58,7 +63,6 @@ internal sealed class ControlledEditorForm : Form
             RefreshSuggestions();
         };
         Deactivate += (_, _) => popup.Hide();
-        FormClosed += (_, _) => popup.Dispose();
         UpdateReport();
     }
 
@@ -124,7 +128,7 @@ internal sealed class ControlledEditorForm : Form
 
         long version = ++contextVersion;
         string prefix = context.TypedPrefix;
-        string[] candidates = context.IsEligible && prefix.Length > 0 &&
+        string[] candidates = context.IsEligible && prefix.Length >= 2 &&
                               !StringComparer.Ordinal.Equals(CurrentContextKey(), dismissedContextKey)
             ? DemoWords.Where(word => word.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
                 .Distinct(StringComparer.OrdinalIgnoreCase)
@@ -144,11 +148,24 @@ internal sealed class ControlledEditorForm : Form
             return;
         }
 
-        // Coordinates are available only because this demo owns the RichTextBox.
-        // A global adapter must provide and verify its own caret geometry.
+        // Place the compact child-control popup in the editor host's coordinate space.
+        // It is not a top-level window, so showing it does not activate another window.
         Point caret = editor.GetPositionFromCharIndex(editor.SelectionStart);
-        Point screenAnchor = editor.PointToScreen(new Point(caret.X, caret.Y + editor.Font.Height + 4));
-        popup.ShowSuggestions(this, candidates, screenAnchor);
+        Point editorAnchor = new(caret.X + 4, caret.Y + editor.Font.Height + 4);
+        Point hostAnchor = editor.PointToScreen(editorAnchor);
+        Control? host = editor.Parent;
+        if (host is null)
+        {
+            popup.Hide();
+            return;
+        }
+
+        hostAnchor = host.PointToClient(hostAnchor);
+        int x = Math.Clamp(hostAnchor.X, 0, Math.Max(0, host.ClientSize.Width - popup.Width));
+        int y = hostAnchor.Y;
+        if (y + popup.Height > host.ClientSize.Height)
+            y = Math.Max(0, caret.Y - popup.Height - 4);
+        popup.ShowSuggestions(candidates, new Point(x, y));
     }
 
     private bool AcceptSuggestion(int index)
@@ -218,7 +235,7 @@ internal sealed class ControlledEditorForm : Form
         {
             var context = TextContext.Capture(editor.Text, editor.SelectionStart, editor.SelectionLength, editor.Focused, sensitive.Checked);
             string selected = context.HasSelection ? $"{context.SelectionLength} UTF-16 units selected" : "no selection";
-            report.Text = $"Focus: {(context.HasFocus ? "editor" : "none")} | Caret: {context.Caret} | {selected} | Eligible: {context.IsEligible}\nCurrent word: {(context.IsSensitive ? "[disabled for sensitive field]" : context.CurrentWord)} | Previous context: {(context.IsSensitive ? "[disabled]" : context.PrecedingContext())}\nStage 3 demo: Ctrl+Space / Ctrl+1–3 accepts; Esc dismisses. Suggestions are sample-only until Stage 4.";
+            report.Text = $"Focus: {(context.HasFocus ? "editor" : "none")} | Caret: {context.Caret} | {selected} | Eligible: {context.IsEligible}\nCurrent word: {(context.IsSensitive ? "[disabled for sensitive field]" : context.CurrentWord)} | Previous context: {(context.IsSensitive ? "[disabled]" : context.PrecedingContext())}\nStage 3 demo: Ctrl+Space / Ctrl+1–3 accepts; Esc dismisses. Suggestions are sample-only until Stage 4. Popup requires a two-character prefix.";
         }
         finally { updating = false; }
     }
