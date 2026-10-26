@@ -120,11 +120,20 @@ static HRESULT RegisterTsfProfile()
     TraceHr(L"ITfInputProcessorProfiles::Register", hr);
     if (SUCCEEDED(hr))
     {
-        // Microsoft documents LANGID -1 as the all-languages sentinel.
+        // Register for the user's current Windows language (en-US / 0x0409)
+        // rather than relying on the all-languages sentinel, which Windows may
+        // register internally without exposing as a selectable keyboard profile.
+        constexpr LANGID kProfileLanguage = 0x0409;
         hr = profiles->AddLanguageProfile(CLSID_PCWordTsfProbe,
-            static_cast<LANGID>(-1), GUID_PCWordTsfProfile,
+            kProfileLanguage, GUID_PCWordTsfProfile,
             L"PCWord TSF Feasibility Probe", -1, nullptr, 0, 0);
         TraceHr(L"ITfInputProcessorProfiles::AddLanguageProfile", hr);
+        if (SUCCEEDED(hr))
+        {
+            hr = profiles->EnableLanguageProfile(CLSID_PCWordTsfProbe,
+                kProfileLanguage, GUID_PCWordTsfProfile, TRUE);
+            TraceHr(L"ITfInputProcessorProfiles::EnableLanguageProfile", hr);
+        }
         if (FAILED(hr))
         {
             profiles->Unregister(CLSID_PCWordTsfProbe);
