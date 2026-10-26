@@ -48,10 +48,14 @@ static std::wstring GuidString(REFGUID guid)
 static HRESULT RegisterComServer()
 {
     wchar_t modulePath[MAX_PATH]{};
-    if (!GetModuleFileNameW(g_module, modulePath, MAX_PATH))
+    const DWORD pathLength = GetModuleFileNameW(g_module, modulePath, MAX_PATH);
+    if (pathLength == 0)
         return HRESULT_FROM_WIN32(GetLastError());
+    if (pathLength >= MAX_PATH)
+        return HRESULT_FROM_WIN32(ERROR_INSUFFICIENT_BUFFER);
 
     const std::wstring clsidPath = L"Software\\Classes\\CLSID\\" + GuidString(CLSID_PCWordTsfProbe);
+    const std::wstring serverPath = clsidPath + L"\\InprocServer32";
     HKEY key = nullptr;
     LONG result = RegCreateKeyExW(HKEY_CURRENT_USER, clsidPath.c_str(), 0, nullptr, 0,
         KEY_WRITE, nullptr, &key, nullptr);
@@ -59,15 +63,17 @@ static HRESULT RegisterComServer()
         return HRESULT_FROM_WIN32(result);
     RegCloseKey(key);
 
-    const std::wstring serverPath = clsidPath + L"\\InprocServer32";
     result = RegCreateKeyExW(HKEY_CURRENT_USER, serverPath.c_str(), 0, nullptr, 0,
         KEY_WRITE, nullptr, &key, nullptr);
     if (result != ERROR_SUCCESS)
+    {
+        RegDeleteTreeW(HKEY_CURRENT_USER, clsidPath.c_str());
         return HRESULT_FROM_WIN32(result);
+    }
 
     result = RegSetValueExW(key, nullptr, 0, REG_SZ,
         reinterpret_cast<const BYTE*>(modulePath),
-        static_cast<DWORD>((wcslen(modulePath) + 1) * sizeof(wchar_t)));
+        static_cast<DWORD>((pathLength + 1) * sizeof(wchar_t)));
     if (result == ERROR_SUCCESS)
     {
         const wchar_t threadingModel[] = L"Apartment";
@@ -75,7 +81,14 @@ static HRESULT RegisterComServer()
             reinterpret_cast<const BYTE*>(threadingModel), sizeof(threadingModel));
     }
     RegCloseKey(key);
-    return result == ERROR_SUCCESS ? S_OK : HRESULT_FROM_WIN32(result);
+
+    if (result != ERROR_SUCCESS)
+    {
+        // Do not leave a partially registered COM class behind.
+        RegDeleteTreeW(HKEY_CURRENT_USER, clsidPath.c_str());
+        return HRESULT_FROM_WIN32(result);
+    }
+    return S_OK;
 }
 
 static HRESULT RegisterTsfProfile()
