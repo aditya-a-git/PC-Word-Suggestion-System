@@ -49,3 +49,16 @@
 **Decision.** Replace the top-level Form with a compact child Panel hosted inside the controlled editor window. Child labels are non-selectable, and suggestions are suppressed until the prefix has at least two characters. This prevents a second top-level window from being shown and reduces noise from single-letter prefixes.
 
 **Trade-offs and limits.** The child panel can only appear inside PCWord's own window. It does not solve caret tracking or explicit edits in other applications. Manual testing is still required to confirm keyboard focus retention, persistence while typing, dismissal, and edit correctness.
+
+
+## ADR-0005: use UI Automation as a read-only feasibility probe, not as the final input adapter
+
+**Status:** Probe implemented; application compatibility and edit path unverified.
+
+**Context.** The system-wide goal requires evidence that Windows can expose focused-field identity, text around the caret, selection state, and caret geometry without interrupting typing. A keyboard hook alone cannot provide this complete information.
+
+**Decision.** Add `tools/PCWord.WindowsProbe`, a small Windows/.NET console probe using UI Automation `TextPattern`. It reports focused process/control metadata, provider capability flags, and bounded character counts. It is deliberately read-only and does not send input or edit text. It skips surrounding text when the provider marks the focused element as a password field or when a selection is present. It never prints or persists text content.
+
+**Trade-offs and limitations.** UI Automation providers differ by application and field type. Password metadata is not a universal sensitivity signal; a non-password field may still contain private information. The probe demonstrates only what a particular provider exposes at a particular moment. It does not establish stale-context-safe replacement, a non-activating global overlay, or system-wide compatibility.
+
+**Next decision gate.** Run the documented synthetic-text matrix on Notepad, browser text input and contenteditable, VS Code, an office editor, and terminal. Compare the observations with a native TSF text-service proof of concept. Do not connect the prediction engine to other applications or claim system-wide support until both context acquisition and an explicit edit can be verified without duplicated/lost characters or focus theft.
