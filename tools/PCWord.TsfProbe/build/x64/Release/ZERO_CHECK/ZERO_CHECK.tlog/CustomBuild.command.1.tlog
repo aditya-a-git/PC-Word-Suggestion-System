@@ -1,0 +1,10 @@
+^C:\USERS\ADITY\ONEDRIVE\CODING\PC SUGGEST\TOOLS\PCWORD.TSFPROBE\BUILD\CMAKEFILES\84AC300818A69D20349660E0A870471A\GENERATE.STAMP.RULE
+setlocal
+"C:\Program Files\CMake\bin\cmake.exe" "-SC:/Users/adity/OneDrive/coding/PC Suggest/tools/PCWord.TsfProbe" "-BC:/Users/adity/OneDrive/coding/PC Suggest/tools/PCWord.TsfProbe/build" --check-stamp-list CMakeFiles/generate.stamp.list --vs-solution-file "C:/Users/adity/OneDrive/coding/PC Suggest/tools/PCWord.TsfProbe/build/PCWordTsfProbe.slnx"
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal & call :cmErrorLevel %errorlevel% & goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd

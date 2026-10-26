@@ -1,0 +1,16 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="18.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <ClCompile Include="C:\Users\adity\OneDrive\coding\PC Suggest\tools\PCWord.TsfProbe\TsfProbe.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <CustomBuild Include="C:\Users\adity\OneDrive\coding\PC Suggest\tools\PCWord.TsfProbe\CMakeLists.txt" />
+  </ItemGroup>
+  <ItemGroup>
+    <Filter Include="Source Files">
+      <UniqueIdentifier>{E133CB59-D272-3631-8872-6EDD1979ED8D}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+</Project>

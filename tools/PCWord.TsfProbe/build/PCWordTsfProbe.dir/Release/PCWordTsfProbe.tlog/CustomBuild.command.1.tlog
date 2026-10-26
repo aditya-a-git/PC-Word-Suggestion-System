@@ -1,0 +1,10 @@
+^C:\USERS\ADITY\ONEDRIVE\CODING\PC SUGGEST\TOOLS\PCWORD.TSFPROBE\CMAKELISTS.TXT
+setlocal
+"C:\Program Files\CMake\bin\cmake.exe" "-SC:/Users/adity/OneDrive/coding/PC Suggest/tools/PCWord.TsfProbe" "-BC:/Users/adity/OneDrive/coding/PC Suggest/tools/PCWord.TsfProbe/build" --check-stamp-file "C:/Users/adity/OneDrive/coding/PC Suggest/tools/PCWord.TsfProbe/build/CMakeFiles/generate.stamp"
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal & call :cmErrorLevel %errorlevel% & goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd
