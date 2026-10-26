@@ -11,7 +11,6 @@
 
 #pragma comment(lib, "ole32.lib")
 #pragma comment(lib, "advapi32.lib")
-#pragma comment(lib, "msctf.lib")
 
 // Stable identifiers for this experimental, per-user TSF text service.
 static const CLSID CLSID_PCWordTsfProbe =
