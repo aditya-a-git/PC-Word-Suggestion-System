@@ -10,14 +10,21 @@ From the repository root on Windows 11 with the .NET 10 SDK:
 dotnet run --project .\tools\PCWord.WindowsProbe\PCWord.WindowsProbe.csproj
 ```
 
-Keep the probe console open, then focus a **non-sensitive test field** in Notepad or another application. The probe reports metadata such as process name, control type, whether UI Automation `TextPattern` is available, whether a selection exists, and how many preceding/following characters the provider returned.
+By default, the probe reports focused-control metadata without reading surrounding text. To test context availability, first focus a field containing only synthetic text such as `PCWord probe sample`, then run:
+
+```powershell
+dotnet run --project .\\tools\\PCWord.WindowsProbe\\PCWord.WindowsProbe.csproj -- --allow-context-read
+```
+
+Keep the probe console open while the test field is focused. With the explicit flag, it reports the number of preceding/following characters the provider returned.
 
 Use only synthetic test text such as `PCWord probe sample`. Do not use passwords, private messages, source code, or real personal text.
 
 ## Privacy and safety behavior
 
 - Does not install a keyboard hook or record keystrokes.
-- Does not print, log, or persist text content. Surrounding text is held only transiently in memory to measure whether context is available.
+- By default, does not read surrounding text. The `--allow-context-read` flag explicitly opts in to transient bounded context reads.
+- Never prints or persists text content. With the opt-in flag, text is held only transiently in memory to measure whether context is available.
 - Skips password fields when UI Automation reports `IsPassword`.
 - Skips surrounding context while a selection is present.
 - Does not edit text, invoke `ValuePattern.SetValue`, send synthetic keystrokes, or modify the clipboard.
