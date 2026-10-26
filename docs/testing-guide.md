@@ -25,4 +25,14 @@
 8. Place the caret near the bottom/right edges of the editor. Confirm the panel stays inside the editor host.
 9. Verify exact resulting text and caret after accepting a suggestion. Watch for duplicate or missing characters.
 
-The demo vocabulary is hard-coded until Stage 4. These tests apply only to PCWord's own controlled editor, not Notepad, browsers, Office, VS Code, terminals, or other processes. Record pass/fail and Windows/.NET versions without including real user text.
+## Windows integration feasibility probe
+
+1. On Windows 11 with the .NET 10 SDK, run `dotnet run --project .\tools\PCWord.WindowsProbe\PCWord.WindowsProbe.csproj`.
+2. In Notepad or another test field, type only synthetic text such as `PCWord probe sample`; ensure no private content is in the focused field.
+3. With the synthetic text focused, opt in using `dotnet run --project .\\tools\\PCWord.WindowsProbe\\PCWord.WindowsProbe.csproj -- --allow-context-read`. Confirm the output identifies the focused process/control and reports whether TextPattern, selection metadata, caret geometry, and bounded context are available. Confirm no text content is printed.
+4. Repeat separately for a browser plain input, browser contenteditable, VS Code, an Office editor, and a terminal. Treat each field type as a separate observation.
+5. Test a password field and a selected text range. Confirm the probe reports password/selection status and skips surrounding context.
+6. Switch focus between applications and confirm the reported process/control identity changes.
+7. Do not attempt text edits: this probe is intentionally read-only. Record only application/version, field type, capability flags, and pass/fail in the compatibility matrix; do not record typed text.
+
+A successful UI Automation read does not establish safe editing. Compare observations with a native TSF prototype before selecting an explicit edit mechanism. Benchmarking remains deferred to the final stage.
