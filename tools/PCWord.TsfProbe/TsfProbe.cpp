@@ -94,6 +94,13 @@ static HRESULT RegisterTsfProfile()
         hr = profiles->AddLanguageProfile(CLSID_PCWordTsfProbe,
             static_cast<LANGID>(-1), GUID_PCWordTsfProfile,
             L"PCWord TSF Feasibility Probe", -1, nullptr, 0, 0);
+        if (FAILED(hr))
+        {
+            // Roll back the processor registration if profile creation fails.
+            profiles->Unregister(CLSID_PCWordTsfProbe);
+            profiles->Release();
+            return hr;
+        }
     }
     profiles->Release();
     if (FAILED(hr))
@@ -103,11 +110,32 @@ static HRESULT RegisterTsfProfile()
     hr = CoCreateInstance(CLSID_TF_CategoryMgr, nullptr, CLSCTX_INPROC_SERVER,
         IID_ITfCategoryMgr, reinterpret_cast<void**>(&categories));
     if (FAILED(hr))
+    {
+        ITfInputProcessorProfiles* rollbackProfiles = nullptr;
+        if (SUCCEEDED(CoCreateInstance(CLSID_TF_InputProcessorProfiles, nullptr,
+            CLSCTX_INPROC_SERVER, IID_ITfInputProcessorProfiles,
+            reinterpret_cast<void**>(&rollbackProfiles))))
+        {
+            rollbackProfiles->Unregister(CLSID_PCWordTsfProbe);
+            rollbackProfiles->Release();
+        }
         return hr;
+    }
 
     hr = categories->RegisterCategory(CLSID_PCWordTsfProbe,
         GUID_TFCAT_TIP_KEYBOARD, CLSID_PCWordTsfProbe);
     categories->Release();
+    if (FAILED(hr))
+    {
+        ITfInputProcessorProfiles* rollbackProfiles = nullptr;
+        if (SUCCEEDED(CoCreateInstance(CLSID_TF_InputProcessorProfiles, nullptr,
+            CLSCTX_INPROC_SERVER, IID_ITfInputProcessorProfiles,
+            reinterpret_cast<void**>(&rollbackProfiles))))
+        {
+            rollbackProfiles->Unregister(CLSID_PCWordTsfProbe);
+            rollbackProfiles->Release();
+        }
+    }
     return hr;
 }
 
@@ -123,9 +151,8 @@ static void UnregisterTsfProfile()
     }
 
     ITfCategoryMgr* categories = nullptr;
-    if (SUCCEEDED(CoCreateInstance(CLSID_TF_CategoryMgr, nullptr,
-        CLSCTX_INPROC_SERVER, IID_ITfCategoryMgr,
-        reinterpret_cast<void**>(&categories))))
+    if (SUCCEEDED(CoCreateInstance(CLSID_TF_CategoryMgr, nullptr, CLSCTX_INPROC_SERVER,
+        IID_ITfCategoryMgr, reinterpret_cast<void**>(&categories))))
     {
         categories->UnregisterCategory(CLSID_PCWordTsfProbe,
             GUID_TFCAT_TIP_KEYBOARD, CLSID_PCWordTsfProbe);
@@ -536,10 +563,18 @@ STDAPI DllRegisterServer(void)
     if (FAILED(hr)) return hr;
 
     const HRESULT initHr = CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED);
+    if (FAILED(initHr))
+    {
+        RegDeleteTreeW(HKEY_CURRENT_USER,
+            (L"Software\\Classes\\CLSID\\" + GuidString(CLSID_PCWordTsfProbe)).c_str());
+        return initHr;
+    }
+
     hr = RegisterTsfProfile();
-    if (SUCCEEDED(initHr)) CoUninitialize();
+    CoUninitialize();
     if (FAILED(hr))
     {
+        // RegisterTsfProfile rolls back partial TSF state; remove the COM entry too.
         RegDeleteTreeW(HKEY_CURRENT_USER,
             (L"Software\\Classes\\CLSID\\" + GuidString(CLSID_PCWordTsfProbe)).c_str());
     }
@@ -549,8 +584,12 @@ STDAPI DllRegisterServer(void)
 STDAPI DllUnregisterServer(void)
 {
     const HRESULT initHr = CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED);
+    if (FAILED(initHr))
+        return initHr;
+
     UnregisterTsfProfile();
-    if (initHr == S_OK || initHr == S_FALSE) CoUninitialize();
+    CoUninitialize();
+
     LONG result = RegDeleteTreeW(HKEY_CURRENT_USER,
         (L"Software\\Classes\\CLSID\\" + GuidString(CLSID_PCWordTsfProbe)).c_str());
     return result == ERROR_SUCCESS || result == ERROR_FILE_NOT_FOUND
