@@ -367,8 +367,8 @@ private:
     static bool IsPasswordInputScope(ITfContext* context, TfEditCookie cookie,
         ITfRange* range)
     {
-        ITfProperty* property = nullptr;
-        HRESULT hr = context->GetProperty(GUID_PROP_INPUTSCOPE, &property);
+        ITfReadOnlyProperty* property = nullptr;
+        HRESULT hr = context->GetAppProperty(GUID_PROP_INPUTSCOPE, &property);
         if (FAILED(hr) || !property) return false;
 
         VARIANT value;
@@ -542,7 +542,7 @@ extern "C" __declspec(dllexport) HRESULT __stdcall DllUnregisterServer()
 {
     const HRESULT initHr = CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED);
     UnregisterTsfProfile();
-    if (SUCCEEDED(initHr)) CoUninitialize();
+    if (initHr == S_OK || initHr == S_FALSE) CoUninitialize();
     LONG result = RegDeleteTreeW(HKEY_CURRENT_USER,
         (L"Software\\Classes\\CLSID\\" + GuidString(CLSID_PCWordTsfProbe)).c_str());
     return result == ERROR_SUCCESS || result == ERROR_FILE_NOT_FOUND
