@@ -12,9 +12,15 @@ The controlled harness checkbox simulates a sensitive field: context becomes ine
 
 Stage 2 only permits prediction when the adapter reports the field as `KnownSafe`, focus is present, the field has an identity, no text selection exists, context is available, and IME composition is not active. `Unknown` sensitivity, sensitive fields, missing context, missing focus, selection and composition are conservatively excluded. The contract cannot independently verify whether an adapter's sensitivity report is correct.
 
+## Windows UI Automation feasibility probe
+
+The read-only probe at `tools/PCWord.WindowsProbe` polls the focused UI Automation element and transiently reads at most 128 preceding and 32 following characters only to determine whether the provider exposes bounded text context. It prints metadata and character counts, never text content, and does not persist snapshots or log key events. It skips context reads when UI Automation marks the field as a password field or when a selection is present.
+
+This remains a feasibility tool, not a production adapter. UI Automation does not universally expose sensitivity, and a provider may expose text even when a user considers it private. Use only synthetic text during testing. The probe does not attempt replacement.
+
 ## Boundaries and adapter obligations
 
-There is no global keyboard hook, key event recorder, telemetry, network request, personalization store, or system-wide input adapter implemented. The contract does not claim compatibility with other applications. A future adapter must not elevate privileges unnecessarily or bypass process security boundaries. Before applying an edit, it must check the active field identity, context version and expected text, and must return an explicit failure status when the edit is stale, unsupported, refused, or fails.
+There is no global keyboard hook, key event recorder, telemetry, network request, personalization store, or production system-wide input adapter implemented. The UI Automation probe does not edit text. The contract does not claim compatibility with other applications. A future adapter must not elevate privileges unnecessarily or bypass process security boundaries. Before applying an edit, it must check the active field identity, context version and expected text, and must return an explicit failure status when the edit is stale, unsupported, refused, or fails.
 
 Logging, if added later, must be metadata-only by default and must never contain typed text.
 
