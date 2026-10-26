@@ -28,8 +28,8 @@
 ## Windows integration feasibility probe
 
 1. On Windows 11 with the .NET 10 SDK, run `dotnet run --project .\tools\PCWord.WindowsProbe\PCWord.WindowsProbe.csproj`.
-2. Keep the console open. In Notepad, type only synthetic text such as `PCWord probe sample`, then move the caret within it.
-3. Confirm the output identifies the focused process/control type and reports whether TextPattern, selection metadata, and caret geometry are available. Confirm no text content is printed.
+2. In Notepad or another test field, type only synthetic text such as `PCWord probe sample`; ensure no private content is in the focused field.
+3. With the synthetic text focused, opt in using `dotnet run --project .\\tools\\PCWord.WindowsProbe\\PCWord.WindowsProbe.csproj -- --allow-context-read`. Confirm the output identifies the focused process/control and reports whether TextPattern, selection metadata, caret geometry, and bounded context are available. Confirm no text content is printed.
 4. Repeat separately for a browser plain input, browser contenteditable, VS Code, an Office editor, and a terminal. Treat each field type as a separate observation.
 5. Test a password field and a selected text range. Confirm the probe reports password/selection status and skips surrounding context.
 6. Switch focus between applications and confirm the reported process/control identity changes.
