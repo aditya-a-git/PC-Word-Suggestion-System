@@ -48,10 +48,14 @@ static std::wstring GuidString(REFGUID guid)
 static HRESULT RegisterComServer()
 {
     wchar_t modulePath[MAX_PATH]{};
-    if (!GetModuleFileNameW(g_module, modulePath, MAX_PATH))
+    const DWORD pathLength = GetModuleFileNameW(g_module, modulePath, MAX_PATH);
+    if (pathLength == 0)
         return HRESULT_FROM_WIN32(GetLastError());
+    if (pathLength >= MAX_PATH)
+        return HRESULT_FROM_WIN32(ERROR_INSUFFICIENT_BUFFER);
 
     const std::wstring clsidPath = L"Software\\Classes\\CLSID\\" + GuidString(CLSID_PCWordTsfProbe);
+    const std::wstring serverPath = clsidPath + L"\\InprocServer32";
     HKEY key = nullptr;
     LONG result = RegCreateKeyExW(HKEY_CURRENT_USER, clsidPath.c_str(), 0, nullptr, 0,
         KEY_WRITE, nullptr, &key, nullptr);
@@ -59,15 +63,17 @@ static HRESULT RegisterComServer()
         return HRESULT_FROM_WIN32(result);
     RegCloseKey(key);
 
-    const std::wstring serverPath = clsidPath + L"\\InprocServer32";
     result = RegCreateKeyExW(HKEY_CURRENT_USER, serverPath.c_str(), 0, nullptr, 0,
         KEY_WRITE, nullptr, &key, nullptr);
     if (result != ERROR_SUCCESS)
+    {
+        RegDeleteTreeW(HKEY_CURRENT_USER, clsidPath.c_str());
         return HRESULT_FROM_WIN32(result);
+    }
 
     result = RegSetValueExW(key, nullptr, 0, REG_SZ,
         reinterpret_cast<const BYTE*>(modulePath),
-        static_cast<DWORD>((wcslen(modulePath) + 1) * sizeof(wchar_t)));
+        static_cast<DWORD>((pathLength + 1) * sizeof(wchar_t)));
     if (result == ERROR_SUCCESS)
     {
         const wchar_t threadingModel[] = L"Apartment";
@@ -75,7 +81,14 @@ static HRESULT RegisterComServer()
             reinterpret_cast<const BYTE*>(threadingModel), sizeof(threadingModel));
     }
     RegCloseKey(key);
-    return result == ERROR_SUCCESS ? S_OK : HRESULT_FROM_WIN32(result);
+
+    if (result != ERROR_SUCCESS)
+    {
+        // Do not leave a partially registered COM class behind.
+        RegDeleteTreeW(HKEY_CURRENT_USER, clsidPath.c_str());
+        return HRESULT_FROM_WIN32(result);
+    }
+    return S_OK;
 }
 
 static HRESULT RegisterTsfProfile()
@@ -94,6 +107,13 @@ static HRESULT RegisterTsfProfile()
         hr = profiles->AddLanguageProfile(CLSID_PCWordTsfProbe,
             static_cast<LANGID>(-1), GUID_PCWordTsfProfile,
             L"PCWord TSF Feasibility Probe", -1, nullptr, 0, 0);
+        if (FAILED(hr))
+        {
+            // Roll back the processor registration if profile creation fails.
+            profiles->Unregister(CLSID_PCWordTsfProbe);
+            profiles->Release();
+            return hr;
+        }
     }
     profiles->Release();
     if (FAILED(hr))
@@ -103,11 +123,32 @@ static HRESULT RegisterTsfProfile()
     hr = CoCreateInstance(CLSID_TF_CategoryMgr, nullptr, CLSCTX_INPROC_SERVER,
         IID_ITfCategoryMgr, reinterpret_cast<void**>(&categories));
     if (FAILED(hr))
+    {
+        ITfInputProcessorProfiles* rollbackProfiles = nullptr;
+        if (SUCCEEDED(CoCreateInstance(CLSID_TF_InputProcessorProfiles, nullptr,
+            CLSCTX_INPROC_SERVER, IID_ITfInputProcessorProfiles,
+            reinterpret_cast<void**>(&rollbackProfiles))))
+        {
+            rollbackProfiles->Unregister(CLSID_PCWordTsfProbe);
+            rollbackProfiles->Release();
+        }
         return hr;
+    }
 
     hr = categories->RegisterCategory(CLSID_PCWordTsfProbe,
         GUID_TFCAT_TIP_KEYBOARD, CLSID_PCWordTsfProbe);
     categories->Release();
+    if (FAILED(hr))
+    {
+        ITfInputProcessorProfiles* rollbackProfiles = nullptr;
+        if (SUCCEEDED(CoCreateInstance(CLSID_TF_InputProcessorProfiles, nullptr,
+            CLSCTX_INPROC_SERVER, IID_ITfInputProcessorProfiles,
+            reinterpret_cast<void**>(&rollbackProfiles))))
+        {
+            rollbackProfiles->Unregister(CLSID_PCWordTsfProbe);
+            rollbackProfiles->Release();
+        }
+    }
     return hr;
 }
 
@@ -123,9 +164,8 @@ static void UnregisterTsfProfile()
     }
 
     ITfCategoryMgr* categories = nullptr;
-    if (SUCCEEDED(CoCreateInstance(CLSID_TF_CategoryMgr, nullptr,
-        CLSCTX_INPROC_SERVER, IID_ITfCategoryMgr,
-        reinterpret_cast<void**>(&categories))))
+    if (SUCCEEDED(CoCreateInstance(CLSID_TF_CategoryMgr, nullptr, CLSCTX_INPROC_SERVER,
+        IID_ITfCategoryMgr, reinterpret_cast<void**>(&categories))))
     {
         categories->UnregisterCategory(CLSID_PCWordTsfProbe,
             GUID_TFCAT_TIP_KEYBOARD, CLSID_PCWordTsfProbe);
@@ -536,10 +576,18 @@ STDAPI DllRegisterServer(void)
     if (FAILED(hr)) return hr;
 
     const HRESULT initHr = CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED);
+    if (FAILED(initHr))
+    {
+        RegDeleteTreeW(HKEY_CURRENT_USER,
+            (L"Software\\Classes\\CLSID\\" + GuidString(CLSID_PCWordTsfProbe)).c_str());
+        return initHr;
+    }
+
     hr = RegisterTsfProfile();
-    if (SUCCEEDED(initHr)) CoUninitialize();
+    CoUninitialize();
     if (FAILED(hr))
     {
+        // RegisterTsfProfile rolls back partial TSF state; remove the COM entry too.
         RegDeleteTreeW(HKEY_CURRENT_USER,
             (L"Software\\Classes\\CLSID\\" + GuidString(CLSID_PCWordTsfProbe)).c_str());
     }
@@ -549,8 +597,12 @@ STDAPI DllRegisterServer(void)
 STDAPI DllUnregisterServer(void)
 {
     const HRESULT initHr = CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED);
+    if (FAILED(initHr))
+        return initHr;
+
     UnregisterTsfProfile();
-    if (initHr == S_OK || initHr == S_FALSE) CoUninitialize();
+    CoUninitialize();
+
     LONG result = RegDeleteTreeW(HKEY_CURRENT_USER,
         (L"Software\\Classes\\CLSID\\" + GuidString(CLSID_PCWordTsfProbe)).c_str());
     return result == ERROR_SUCCESS || result == ERROR_FILE_NOT_FOUND

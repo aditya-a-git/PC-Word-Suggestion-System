@@ -6,3 +6,7 @@ TestResults/
 *.user
 *.suo
 *.log
+
+# Native CMake build trees and generated caches
+**/build/
+**/build-*/
