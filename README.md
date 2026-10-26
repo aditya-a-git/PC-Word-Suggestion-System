@@ -27,6 +27,12 @@ A read-only UI Automation probe is available at `tools/PCWord.WindowsProbe`. Run
 
 By default, the probe reports focused-control metadata without reading surrounding text. Only when focused on synthetic test text, explicitly opt in to bounded context reads with `dotnet run --project .\\tools\\PCWord.WindowsProbe\\PCWord.WindowsProbe.csproj -- --allow-context-read`. It never prints text content and does not edit text; it is not a system-wide typing adapter. Follow `tools/PCWord.WindowsProbe/README.md` and record observations in `docs/compatibility-matrix.md`.
 
+## Windows TSF feasibility probe
+
+A native C++ Text Services Framework (TSF) probe is available in `tools/PCWord.TsfProbe`. It is an experimental, read-only in-process text service. It observes TSF activation, document focus and edit notifications; it reports only status metadata, bounded character counts and caret-rectangle availability through the debugger output stream. It never prints text content or modifies text.
+
+See `tools/PCWord.TsfProbe/README.md` for build, per-user registration, explicit synthetic-text opt-in, test steps and uninstall instructions. Do not register this prototype on a daily-use machine unless you are comfortable testing a native COM DLL. It is not a production input adapter or a system-wide suggestion UI.
+
 ## Scope and limitations
 
 - The popup is a child control inside PCWord's own editor window. This avoids activating a separate top-level popup window, but is not a system-wide overlay.
