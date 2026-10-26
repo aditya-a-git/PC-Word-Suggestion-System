@@ -19,12 +19,20 @@ Requirements: Windows and the .NET 10 SDK with the Windows Desktop targeting pac
 5. Continue typing while the popup is visible; the editor should retain focus.
 6. Enable **Treat this field as sensitive** and confirm that suggestions disappear.
 
+## Windows integration feasibility probe
+
+A read-only UI Automation probe is available at `tools/PCWord.WindowsProbe`. Run it on Windows:
+
+    dotnet run --project .\tools\PCWord.WindowsProbe\PCWord.WindowsProbe.csproj
+
+Focus a non-sensitive test field in another application. The probe reports UI Automation capabilities and bounded context lengths, never text content. It does not edit text and is not a system-wide typing adapter. Follow `tools/PCWord.WindowsProbe/README.md` and record observations in `docs/compatibility-matrix.md`.
+
 ## Scope and limitations
 
 - The popup is a child control inside PCWord's own editor window. This avoids activating a separate top-level popup window, but is not a system-wide overlay.
 - Caret geometry comes from the RichTextBox owned by this app. No cross-process caret acquisition or editing is implemented.
-- Suggestions use a tiny hard-coded demo vocabulary. Stage 4 will connect the actual dictionary prediction engine.
-- Acceptance checks the current editor text, selection and caret snapshot before a local replacement. This does not implement the Stage 2 cross-process IInputAdapter.
-- No typed text is logged or persisted. No TSF adapter, global keyboard hook, or universal compatibility is claimed.
+- Suggestions use a tiny hard-coded demo vocabulary. Dictionary integration remains separate work.
+- Acceptance checks the current editor text, selection and caret snapshot before a local replacement. This does not implement the cross-process `IInputAdapter`.
+- No typed text is logged or persisted. No production TSF adapter, global keyboard hook, or universal compatibility is claimed.
 
-See docs/testing-guide.md, docs/compatibility-matrix.md, docs/privacy-model.md, and docs/architecture-decisions.md.
+See `docs/testing-guide.md`, `docs/compatibility-matrix.md`, `docs/privacy-model.md`, and `docs/architecture-decisions.md`.
