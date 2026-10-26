@@ -265,15 +265,9 @@ public:
             return S_OK;
         }
 
-        ITfRange* collapsed = nullptr;
-        LONG endpointComparison = 0;
-        hr = selection.range->Clone(&collapsed);
-        if (SUCCEEDED(hr) && collapsed)
-            hr = collapsed->Collapse(cookie, TF_ANCHOR_START);
-        if (SUCCEEDED(hr) && collapsed)
-            hr = collapsed->CompareEnd(cookie, selection.range, &endpointComparison);
-        if (collapsed) collapsed->Release();
-        if (FAILED(hr) || endpointComparison != 0)
+        BOOL isEmpty = FALSE;
+        hr = selection.range->IsEmpty(cookie, &isEmpty);
+        if (FAILED(hr) || !isEmpty)
         {
             Trace(L"Edit notification received; non-collapsed or unknown selection, context skipped.");
             selection.range->Release();
