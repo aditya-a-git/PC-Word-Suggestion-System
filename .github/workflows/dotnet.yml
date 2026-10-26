@@ -21,24 +21,24 @@ jobs:
           dotnet-version: 10.0.x
 
       - name: Restore solution
-        run: dotnet restore .\\PCWord.sln
+        run: dotnet restore .\PCWord.sln
 
       - name: Build solution
-        run: dotnet build .\\PCWord.sln --configuration Release --no-restore
+        run: dotnet build .\PCWord.sln --configuration Release --no-restore
 
       - name: Run tests
-        run: dotnet test .\\PCWord.sln --configuration Release --no-build --logger "console;verbosity=normal"
+        run: dotnet test .\PCWord.sln --configuration Release --no-build --logger "console;verbosity=normal"
 
       - name: Configure native TSF probe
-        run: cmake -S .\\tools\\PCWord.TsfProbe -B .\\tools\\PCWord.TsfProbe\\build -A x64
+        run: cmake -S .\tools\PCWord.TsfProbe -B .\tools\PCWord.TsfProbe\build -A x64
 
       - name: Build native TSF probe
-        run: cmake --build .\\tools\\PCWord.TsfProbe\\build --config Release
+        run: cmake --build .\tools\PCWord.TsfProbe\build --config Release
 
       - name: Publish native TSF probe artifact
         uses: actions/upload-artifact@v4
         with:
           name: PCWordTsfProbe-win-x64
-          path: .\\tools\\PCWord.TsfProbe\\build\\Release\\PCWordTsfProbe.dll
+          path: .\tools\PCWord.TsfProbe\build\Release\PCWordTsfProbe.dll
           if-no-files-found: error
           retention-days: 7
