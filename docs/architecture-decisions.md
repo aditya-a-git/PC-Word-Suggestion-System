@@ -38,3 +38,14 @@
 **Trade-offs and limitations.** WinForms non-activation flags are a prototype, not proof of focus behavior across Windows configurations. Owned-control caret coordinates do not demonstrate cross-process caret geometry. Mouse selection is omitted because a click could activate the popup and disrupt typing. The demo vocabulary is temporary; Stage 4 connects the actual dictionary engine. The controlled editor does not implement the Stage 2 IInputAdapter or provide system-wide typing support.
 
 **Exit gate.** On Windows, manually verify popup positioning, no focus theft during typing, keyboard acceptance, Escape dismissal, sensitive-field suppression, stale-context rejection, and exact text/caret after edits. Do not claim Stage 3 complete until those interactive checks pass.
+
+
+## ADR-0004: Keep the Stage 3 suggestion surface inside the controlled editor
+
+**Status:** Implemented as a controlled-editor prototype; not a system-wide overlay decision.
+
+**Context.** The first popup used a separate top-level WinForms Form. Manual testing reported that the editor lost focus and typing stopped when the popup appeared.
+
+**Decision.** Replace the top-level Form with a compact child Panel hosted inside the controlled editor window. Child labels are non-selectable, and suggestions are suppressed until the prefix has at least two characters. This prevents a second top-level window from being shown and reduces noise from single-letter prefixes.
+
+**Trade-offs and limits.** The child panel can only appear inside PCWord's own window. It does not solve caret tracking or explicit edits in other applications. Manual testing is still required to confirm keyboard focus retention, persistence while typing, dismissal, and edit correctness.
