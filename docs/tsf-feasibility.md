@@ -9,7 +9,7 @@ The native probe in `tools/PCWord.TsfProbe` is an experimental C++ COM text serv
 - Text content is not emitted; no text is changed and no keystrokes are synthesized.
 - This is not a production adapter and has no prediction or suggestion UI.
 
-## Build
+## Build and artifact
 
 On Windows with Visual Studio C++ tools and CMake:
 
@@ -18,11 +18,52 @@ cmake -S .\tools\PCWord.TsfProbe -B .\tools\PCWord.TsfProbe\build -A x64
 cmake --build .\tools\PCWord.TsfProbe\build --config Release
 ```
 
-The DLL must be registered as a per-user TSF profile and enabled manually for a test account before it will receive notifications. See `tools/PCWord.TsfProbe/README.md`. Runtime validation is still pending.
+The output is `tools\PCWord.TsfProbe\build\Release\PCWordTsfProbe.dll`. CI publishes the same DLL as the `PCWordTsfProbe-win-x64` artifact on successful workflow runs; download it from the latest successful run linked from the [feasibility PR](https://github.com/aditya-a-git/PC-Word-Suggestion-System/pull/2). Artifacts are retained for 7 days.
+
+## Controlled runtime test
+
+Use a disposable Windows VM or separate test account, synthetic text only, and a non-elevated 64-bit PowerShell session. The probe registers a per-user COM class and TSF profile under `HKEY_CURRENT_USER`; do not use machine-wide registration.
+
+After extracting the artifact, from the directory containing the DLL:
+
+```powershell
+$dll = (Resolve-Path ".\PCWordTsfProbe.dll").Path
+& "$env:WINDIR\System32\regsvr32.exe" "$dll"
+```
+
+If the profile is exposed in Windows input/language settings, enable it only for the test account. If it does not appear or activation cannot be confirmed, stop rather than trying elevated or machine-wide registration. Close test applications and unregister after testing:
+
+```powershell
+& "$env:WINDIR\System32\regsvr32.exe" /u "$dll"
+```
+
+The service logs status through Windows debugger output (for example, DebugView or Visual Studio's debugger output). It does not write a log file. Context reads are disabled unless `PCWORD_TSF_ALLOW_CONTEXT_READ=1` is inherited by the target application. Start with the opt-in **unset** and verify activation/focus/edit notifications first. Only if that works, close the application, set the variable in the PowerShell session, and launch the test application from that same session to test bounded counts:
+
+```powershell
+Remove-Item Env:PCWORD_TSF_ALLOW_CONTEXT_READ -ErrorAction SilentlyContinue
+# Launch the test application normally, then inspect debugger output.
+```
+
+For the second pass, after closing the test app:
+
+```powershell
+$env:PCWORD_TSF_ALLOW_CONTEXT_READ = "1"
+# Launch the test application from this same PowerShell session.
+```
+
+Unset the variable again after the test. Do not use real personal data or password/PIN fields. Input-scope metadata is not a universal sensitivity guarantee; unknown or ambiguous scope must be treated as unavailable.
 
 ## Manual comparison
 
 Use synthetic text only. Test each field separately: Notepad, ordinary browser input, browser contenteditable, VS Code editor, and LeetCode editor. Record only app/version, field type, activation, context availability, collapsed selection, caret rectangle, bounded counts, and pass/fail. Never copy typed text into logs or notes.
+
+For each app/field, record:
+- Did the service activate?
+- Were focus and edit notifications observed?
+- Was the selection collapsed?
+- Was caret geometry available?
+- With context reads explicitly enabled, were bounded before/after counts reported or left unavailable?
+- Did focus changes stop or redirect observations as expected?
 
 Password/PIN fields must not be read. If input sensitivity cannot be determined reliably, treat context as unavailable. TSF input scope is not a universal sensitivity guarantee, and a field's provider may not expose TSF context at all.
 
