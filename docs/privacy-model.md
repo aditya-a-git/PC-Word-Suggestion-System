@@ -14,7 +14,7 @@ Stage 2 only permits prediction when the adapter reports the field as `KnownSafe
 
 ## Windows UI Automation feasibility probe
 
-The read-only probe at `tools/PCWord.WindowsProbe` polls the focused UI Automation element and transiently reads at most 128 preceding and 32 following characters only to determine whether the provider exposes bounded text context. It prints metadata and character counts, never text content, and does not persist snapshots or log key events. It skips context reads when UI Automation marks the field as a password field or when a selection is present.
+The read-only probe at `tools/PCWord.WindowsProbe` polls the focused UI Automation element. By default, it reports metadata without reading surrounding text. The explicit `--allow-context-read` flag enables transient reads of at most 128 preceding and 32 following characters only to determine whether the provider exposes bounded context. It prints metadata and character counts, never text content, and does not persist snapshots or log key events. It skips context reads when UI Automation marks the field as a password field or when a selection is present.
 
 This remains a feasibility tool, not a production adapter. UI Automation does not universally expose sensitivity, and a provider may expose text even when a user considers it private. Use only synthetic text during testing. The probe does not attempt replacement.
 
