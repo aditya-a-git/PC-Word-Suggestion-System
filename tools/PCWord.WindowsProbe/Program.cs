@@ -11,10 +11,14 @@ internal static class Program
     private const int FollowingCharacterLimit = 32;
     private static readonly TimeSpan PollInterval = TimeSpan.FromMilliseconds(750);
 
-    private static async Task<int> Main()
+    private static async Task<int> Main(string[] args)
     {
         Console.WriteLine("PCWord Windows UI Automation feasibility probe");
+        bool allowContextRead = args.Any(arg => StringComparer.OrdinalIgnoreCase.Equals(arg, "--allow-context-read"));
         Console.WriteLine("Read-only: no keys are captured, no text is printed, and nothing is saved.");
+        Console.WriteLine(allowContextRead
+            ? "Bounded context reads enabled by explicit flag. Use only synthetic text."
+            : "Context reads disabled. Pass --allow-context-read only while focused on synthetic test text.");
         Console.WriteLine("Focus a test field in another app. Press Ctrl+C here to stop.");
         Console.WriteLine();
 
@@ -25,7 +29,7 @@ internal static class Program
         {
             try
             {
-                ProbeResult result = SampleFocusedElement();
+                ProbeResult result = SampleFocusedElement(allowContextRead);
                 string identity = result.IdentityKey;
 
                 if (!StringComparer.Ordinal.Equals(identity, lastIdentity) ||
@@ -51,7 +55,7 @@ internal static class Program
         }
     }
 
-    private static ProbeResult SampleFocusedElement()
+    private static ProbeResult SampleFocusedElement(bool allowContextRead)
     {
         AutomationElement? element = AutomationElement.FocusedElement;
         if (element is null)
@@ -105,24 +109,31 @@ internal static class Program
                     // collapse the selection before this probe considers the field usable.
                     if (!selectionPresent)
                     {
-                        TextPatternRange before = caretOrSelection.Clone();
-                        before.MoveEndpointByUnit(
-                            TextPatternRangeEndpoint.Start,
-                            TextUnit.Character,
-                            -PrecedingCharacterLimit);
-                        string beforeText = before.GetText(PrecedingCharacterLimit);
-                        precedingLength = beforeText.Length;
-
-                        TextPatternRange after = caretOrSelection.Clone();
-                        after.MoveEndpointByUnit(
-                            TextPatternRangeEndpoint.End,
-                            TextUnit.Character,
-                            FollowingCharacterLimit);
-                        string afterText = after.GetText(FollowingCharacterLimit);
-                        followingLength = afterText.Length;
-
                         caretGeometryAvailable = caretOrSelection.GetBoundingRectangles().Length >= 4;
-                        status = "Caret context read in memory; content suppressed.";
+                        if (allowContextRead)
+                        {
+                            TextPatternRange before = caretOrSelection.Clone();
+                            before.MoveEndpointByUnit(
+                                TextPatternRangeEndpoint.Start,
+                                TextUnit.Character,
+                                -PrecedingCharacterLimit);
+                            string beforeText = before.GetText(PrecedingCharacterLimit);
+                            precedingLength = beforeText.Length;
+
+                            TextPatternRange after = caretOrSelection.Clone();
+                            after.MoveEndpointByUnit(
+                                TextPatternRangeEndpoint.End,
+                                TextUnit.Character,
+                                FollowingCharacterLimit);
+                            string afterText = after.GetText(FollowingCharacterLimit);
+                            followingLength = afterText.Length;
+
+                            status = "Bounded context read in memory; content suppressed.";
+                        }
+                        else
+                        {
+                            status = "Context read disabled; pass --allow-context-read with synthetic test text.";
+                        }
                     }
                     else
                     {
