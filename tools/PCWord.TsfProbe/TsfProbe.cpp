@@ -554,12 +554,12 @@ extern "C" BOOL WINAPI DllMain(HINSTANCE instance, DWORD reason, LPVOID)
     return TRUE;
 }
 
-extern "C" __declspec(dllexport) HRESULT WINAPI DllCanUnloadNow(void)
+STDAPI DllCanUnloadNow(void)
 {
     return g_objects.load() == 0 && g_locks.load() == 0 ? S_OK : S_FALSE;
 }
 
-extern "C" __declspec(dllexport) HRESULT WINAPI DllGetClassObject(
+STDAPI DllGetClassObject(
     REFCLSID clsid, REFIID riid, void** object)
 {
     if (clsid != CLSID_PCWordTsfProbe) return CLASS_E_CLASSNOTAVAILABLE;
@@ -570,7 +570,7 @@ extern "C" __declspec(dllexport) HRESULT WINAPI DllGetClassObject(
     return hr;
 }
 
-extern "C" __declspec(dllexport) HRESULT WINAPI DllRegisterServer(void)
+STDAPI DllRegisterServer(void)
 {
     HRESULT hr = RegisterComServer();
     if (FAILED(hr)) return hr;
@@ -594,7 +594,7 @@ extern "C" __declspec(dllexport) HRESULT WINAPI DllRegisterServer(void)
     return hr;
 }
 
-extern "C" __declspec(dllexport) HRESULT WINAPI DllUnregisterServer(void)
+STDAPI DllUnregisterServer(void)
 {
     const HRESULT initHr = CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED);
     if (FAILED(initHr))
