@@ -140,7 +140,7 @@ public sealed class PredictionContextManager
     }
 
     private static bool IsWordRune(Rune rune) =>
-        Rune.IsLetterOrDigit(rune) || rune.Value is '_' or '\'' or 0x2019;
+        Rune.IsLetterOrDigit(rune) || rune.Value == '_' || rune.Value == '\'' || rune.Value == 0x2019;
 
     private static int PreviousRuneStart(string text, int index) =>
         index >= 2 && char.IsLowSurrogate(text[index - 1]) && char.IsHighSurrogate(text[index - 2])
