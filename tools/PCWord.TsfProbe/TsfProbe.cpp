@@ -38,6 +38,14 @@ static void Trace(const wchar_t* message)
     OutputDebugStringW(L"\r\n");
 }
 
+static void TraceHr(const wchar_t* operation, HRESULT hr)
+{
+    wchar_t message[160]{};
+    swprintf_s(message, L"%s returned HRESULT 0x%08X",
+        operation, static_cast<unsigned int>(hr));
+    Trace(message);
+}
+
 static std::wstring GuidString(REFGUID guid)
 {
     wchar_t value[64]{};
@@ -93,26 +101,30 @@ static HRESULT RegisterComServer()
 
 static HRESULT RegisterTsfProfile()
 {
+    // Clean up this service's own state left by an interrupted prior attempt.
+    UnregisterTsfProfile();
+
     ITfInputProcessorProfiles* profiles = nullptr;
     HRESULT hr = CoCreateInstance(CLSID_TF_InputProcessorProfiles, nullptr,
         CLSCTX_INPROC_SERVER, IID_ITfInputProcessorProfiles,
         reinterpret_cast<void**>(&profiles));
     if (FAILED(hr))
+    {
+        TraceHr(L"CoCreateInstance(ITfInputProcessorProfiles)", hr);
         return hr;
+    }
 
     hr = profiles->Register(CLSID_PCWordTsfProbe);
+    TraceHr(L"ITfInputProcessorProfiles::Register", hr);
     if (SUCCEEDED(hr))
     {
-        // AddLanguageProfile requires a real LANGID; 0xFFFF is not a
-        // valid "all languages" sentinel. Register for the current user's
-        // locale and do not force this profile to become active.
-        const LANGID languageId = GetUserDefaultLangID();
+        // Microsoft documents LANGID -1 as the all-languages sentinel.
         hr = profiles->AddLanguageProfile(CLSID_PCWordTsfProbe,
-            languageId, GUID_PCWordTsfProfile,
+            static_cast<LANGID>(-1), GUID_PCWordTsfProfile,
             L"PCWord TSF Feasibility Probe", -1, nullptr, 0, 0);
+        TraceHr(L"ITfInputProcessorProfiles::AddLanguageProfile", hr);
         if (FAILED(hr))
         {
-            // Roll back the processor registration if profile creation fails.
             profiles->Unregister(CLSID_PCWordTsfProbe);
             profiles->Release();
             return hr;
@@ -127,6 +139,7 @@ static HRESULT RegisterTsfProfile()
         IID_ITfCategoryMgr, reinterpret_cast<void**>(&categories));
     if (FAILED(hr))
     {
+        TraceHr(L"CoCreateInstance(ITfCategoryMgr)", hr);
         ITfInputProcessorProfiles* rollbackProfiles = nullptr;
         if (SUCCEEDED(CoCreateInstance(CLSID_TF_InputProcessorProfiles, nullptr,
             CLSCTX_INPROC_SERVER, IID_ITfInputProcessorProfiles,
@@ -140,9 +153,19 @@ static HRESULT RegisterTsfProfile()
 
     hr = categories->RegisterCategory(CLSID_PCWordTsfProbe,
         GUID_TFCAT_TIP_KEYBOARD, CLSID_PCWordTsfProbe);
+    TraceHr(L"ITfCategoryMgr::RegisterCategory", hr);
     categories->Release();
     if (FAILED(hr))
     {
+        ITfCategoryMgr* rollbackCategories = nullptr;
+        if (SUCCEEDED(CoCreateInstance(CLSID_TF_CategoryMgr, nullptr,
+            CLSCTX_INPROC_SERVER, IID_ITfCategoryMgr,
+            reinterpret_cast<void**>(&rollbackCategories))))
+        {
+            rollbackCategories->UnregisterCategory(CLSID_PCWordTsfProbe,
+                GUID_TFCAT_TIP_KEYBOARD, CLSID_PCWordTsfProbe);
+            rollbackCategories->Release();
+        }
         ITfInputProcessorProfiles* rollbackProfiles = nullptr;
         if (SUCCEEDED(CoCreateInstance(CLSID_TF_InputProcessorProfiles, nullptr,
             CLSCTX_INPROC_SERVER, IID_ITfInputProcessorProfiles,
