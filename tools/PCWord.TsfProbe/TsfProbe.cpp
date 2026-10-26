@@ -18,6 +18,12 @@ static const CLSID CLSID_PCWordTsfProbe =
 static const GUID GUID_PCWordTsfProfile =
 { 0x0c3a11f4, 0x5f3b, 0x47a2, { 0x9e, 0x8d, 0x5a, 0x6f, 0x2d, 0x1c, 0x8b, 0x90 } };
 
+// GUID_PROP_INPUTSCOPE is declared by inputscope.h but not exported by a
+// link library in the Windows SDK used by CI. Keep the documented GUID value
+// local to this translation unit to avoid an unresolved external.
+static const GUID PCWORD_GUID_PROP_INPUTSCOPE =
+{ 0x1713dd5a, 0x68e7, 0x4a5b, { 0x9a, 0xf6, 0x59, 0x2a, 0x59, 0x5c, 0x77, 0x8d } };
+
 static HMODULE g_module = nullptr;
 static std::atomic<long> g_objects{ 0 };
 static std::atomic<long> g_locks{ 0 };
@@ -371,7 +377,7 @@ private:
         ITfRange* range)
     {
         ITfReadOnlyProperty* property = nullptr;
-        HRESULT hr = context->GetAppProperty(GUID_PROP_INPUTSCOPE, &property);
+        HRESULT hr = context->GetAppProperty(PCWORD_GUID_PROP_INPUTSCOPE, &property);
         if (FAILED(hr) || !property) return -1;
 
         VARIANT value;
