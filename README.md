@@ -1,40 +1,30 @@
-# PCWord — Stage 3 controlled-editor popup prototype
+# PCWord — Stage 3 controlled-editor suggestion prototype
 
-PCWord now includes a non-activating suggestion popup experiment inside the controlled WinForms editor. It displays up to three sample completions near the caret, supports deliberate keyboard acceptance and dismissal, and rejects acceptance when the text/caret snapshot is stale.
+PCWord includes a compact suggestion surface inside the Stage 0 controlled editor. It displays up to three sample completions near the caret, supports deliberate keyboard acceptance and dismissal, and checks the text/caret snapshot before editing.
 
-## Requirements
+## Run
 
-- Windows 10/11 x64 (intended Windows 11 target)
-- .NET 10 SDK and Windows Desktop targeting pack
-
-Run from the repository root:
+Requirements: Windows and the .NET 10 SDK with the Windows Desktop targeting pack.
 
     dotnet restore .\PCWord.sln
     dotnet test .\PCWord.sln --configuration Release
     dotnet run --project .\src\PCWord.Stage0\PCWord.Stage0.csproj
 
-## Try the Stage 3 popup
+## Try it
 
-1. Launch the controlled editor and click **Load sample text**, or type a word prefix such as **progr**, **comp**, or **hel**.
-2. A small popup should appear close to the caret when the prefix matches the demo candidate list.
-3. Press **Ctrl+Space** or **Ctrl+1** to accept the first candidate. **Ctrl+2** and **Ctrl+3** accept the second and third candidates when available.
-4. Press **Escape** to dismiss suggestions for the current text/caret state. Typing or moving the caret allows the popup to refresh.
-5. Enable **Treat this field as sensitive** and confirm that suggestions disappear.
-6. Select text or move focus away; the popup should hide rather than apply an edit to an uncertain context.
+1. Type a prefix such as **progr**, **comp**, or **hel**. The popup starts after two or more prefix characters to avoid noisy single-letter results.
+2. The suggestions appear as a compact panel inside the editor window, not as a separate top-level window.
+3. Press **Ctrl+Space** or **Ctrl+1** to accept the first candidate; **Ctrl+2** or **Ctrl+3** accepts the second or third candidate when available.
+4. Press **Escape** to dismiss suggestions for the current text/caret state.
+5. Continue typing while the popup is visible; the editor should retain focus.
+6. Enable **Treat this field as sensitive** and confirm that suggestions disappear.
 
 ## Scope and limitations
 
-- The popup uses WinForms' non-activation styles and is positioned using caret geometry from the RichTextBox owned by this app. This does **not** prove correct caret geometry or focus behavior in other applications.
-- Suggestions currently come from a tiny, hard-coded demo vocabulary. Stage 4 will connect the popup to the Stage 1 dictionary prediction engine.
-- The popup is not a system-wide overlay. No TSF adapter, global keyboard hook, cross-process text editing, or universal compatibility is implemented.
-- Acceptance rechecks the current text, selection and caret snapshot before replacing the current word in the controlled editor. This local proof does not replace adapter-level edit verification for a future system integration.
-- Keyboard acceptance and Escape dismissal are implemented. Mouse selection is intentionally omitted until it can be tested without activation/focus disruption.
-- No typed text is logged or persisted; the popup operates on transient in-memory editor state.
+- The popup is a child control inside PCWord's own editor window. This avoids activating a separate top-level popup window, but is not a system-wide overlay.
+- Caret geometry comes from the RichTextBox owned by this app. No cross-process caret acquisition or editing is implemented.
+- Suggestions use a tiny hard-coded demo vocabulary. Stage 4 will connect the actual dictionary prediction engine.
+- Acceptance checks the current editor text, selection and caret snapshot before a local replacement. This does not implement the Stage 2 cross-process IInputAdapter.
+- No typed text is logged or persisted. No TSF adapter, global keyboard hook, or universal compatibility is claimed.
 
-## Project notes
-
-- Architecture decisions: docs/architecture-decisions.md
-- Compatibility matrix: docs/compatibility-matrix.md
-- Privacy model: docs/privacy-model.md
-- Testing guide: docs/testing-guide.md
-- Implementation plan: plan.md
+See docs/testing-guide.md, docs/compatibility-matrix.md, docs/privacy-model.md, and docs/architecture-decisions.md.
