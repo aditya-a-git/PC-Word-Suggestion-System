@@ -1,11 +1,11 @@
-#define WIN32_LEAN_AND_MEAN
-#define NOMINMAX
 #include <windows.h>
 #include <msctf.h>
 #include <inputscope.h>
 #include <oleauto.h>
 #include <atomic>
 #include <algorithm>
+#include <iterator>
+#include <new>
 #include <string>
 #include <vector>
 
@@ -265,17 +265,23 @@ public:
             return S_OK;
         }
 
-        LONG caretOffset = 0, selectionLength = 0;
-        hr = selection.range->GetExtent(&caretOffset, &selectionLength);
-        if (FAILED(hr) || selectionLength != 0)
+        ITfRange* collapsed = nullptr;
+        LONG endpointComparison = 0;
+        hr = selection.range->Clone(&collapsed);
+        if (SUCCEEDED(hr) && collapsed)
+            hr = collapsed->Collapse(cookie, TF_ANCHOR_START);
+        if (SUCCEEDED(hr) && collapsed)
+            hr = collapsed->CompareEnd(cookie, selection.range, &endpointComparison);
+        if (collapsed) collapsed->Release();
+        if (FAILED(hr) || endpointComparison != 0)
         {
-            Trace(L"Edit notification received; non-collapsed selection, context skipped.");
+            Trace(L"Edit notification received; non-collapsed or unknown selection, context skipped.");
             selection.range->Release();
             return S_OK;
         }
 
-        bool isPassword = IsPasswordInputScope(context, cookie, selection.range);
-        bool allowRead = IsContextReadOptedIn();
+        const int inputScopeStatus = GetInputScopeStatus(context, cookie, selection.range);
+        const bool allowRead = IsContextReadOptedIn() && inputScopeStatus == 0;
         LONG beforeCount = -1, afterCount = -1;
         RECT caretRect{};
         bool caretRectAvailable = false;
@@ -289,15 +295,17 @@ public:
             view->Release();
         }
 
-        if (allowRead && !isPassword)
+        if (allowRead)
             ReadBoundedLengths(cookie, selection.range, &beforeCount, &afterCount);
 
         wchar_t summary[256]{};
-        swprintf_s(summary, L"Edit event: password=%s opt-in=%s selection=collapsed "
+        const wchar_t* scopeLabel = inputScopeStatus == 1 ? L"password" :
+            (inputScopeStatus == 0 ? L"non-password" : L"unknown");
+        swprintf_s(summary, L"Edit event: input-scope=%s opt-in=%s selection=collapsed "
             L"context-read=%s before=%ld after=%ld caret-rect=%s rect=(%ld,%ld,%ld,%ld)",
-            isPassword ? L"yes" : L"no",
-            allowRead ? L"yes" : L"no",
-            (allowRead && !isPassword) ? L"attempted" : L"skipped",
+            scopeLabel,
+            IsContextReadOptedIn() ? L"yes" : L"no",
+            allowRead ? L"attempted" : L"skipped",
             beforeCount, afterCount, caretRectAvailable ? L"yes" : L"no",
             caretRect.left, caretRect.top, caretRect.right, caretRect.bottom);
         Trace(summary);
@@ -364,12 +372,14 @@ private:
         return length == 1 && value[0] == L'1';
     }
 
-    static bool IsPasswordInputScope(ITfContext* context, TfEditCookie cookie,
+    // Return 1 for password, 0 only for a positively observed non-password scope,
+    // and -1 if scope metadata is unavailable. Context reads fail closed for -1.
+    static int GetInputScopeStatus(ITfContext* context, TfEditCookie cookie,
         ITfRange* range)
     {
         ITfReadOnlyProperty* property = nullptr;
         HRESULT hr = context->GetAppProperty(GUID_PROP_INPUTSCOPE, &property);
-        if (FAILED(hr) || !property) return false;
+        if (FAILED(hr) || !property) return -1;
 
         VARIANT value;
         VariantInit(&value);
@@ -378,10 +388,10 @@ private:
         if (FAILED(hr))
         {
             VariantClear(&value);
-            return false;
+            return -1;
         }
 
-        bool password = false;
+        int scopeStatus = -1;
         if (value.vt == VT_UNKNOWN && value.punkVal)
         {
             ITfInputScope* inputScope = nullptr;
@@ -392,11 +402,12 @@ private:
                 UINT count = 0;
                 if (SUCCEEDED(inputScope->GetInputScopes(&scopes, &count)))
                 {
+                    scopeStatus = 0;
                     for (UINT i = 0; i < count; ++i)
                     {
-                        if (scopes[i] == IS_PASSWORD || scopes[i] == IS_PIN)
+                        if (scopes[i] == IS_PASSWORD)
                         {
-                            password = true;
+                            scopeStatus = 1;
                             break;
                         }
                     }
@@ -406,7 +417,7 @@ private:
             }
         }
         VariantClear(&value);
-        return password;
+        return scopeStatus;
     }
 
     static void ReadBoundedLengths(TfEditCookie cookie, ITfRange* caret,
@@ -421,8 +432,7 @@ private:
             if (SUCCEEDED(before->Collapse(cookie, TF_ANCHOR_START)))
             {
                 LONG shifted = 0;
-                BOOL next = FALSE;
-                if (SUCCEEDED(before->ShiftStart(cookie, -kBeforeLimit, &shifted, &next)))
+                if (SUCCEEDED(before->ShiftStart(cookie, -kBeforeLimit, &shifted, nullptr)))
                 {
                     std::vector<WCHAR> buffer(static_cast<size_t>(kBeforeLimit) + 1, L'\0');
                     ULONG actual = 0;
@@ -440,8 +450,7 @@ private:
             if (SUCCEEDED(after->Collapse(cookie, TF_ANCHOR_END)))
             {
                 LONG shifted = 0;
-                BOOL next = FALSE;
-                if (SUCCEEDED(after->ShiftEnd(cookie, kAfterLimit, &shifted, &next)))
+                if (SUCCEEDED(after->ShiftEnd(cookie, kAfterLimit, &shifted, nullptr)))
                 {
                     std::vector<WCHAR> buffer(static_cast<size_t>(kAfterLimit) + 1, L'\0');
                     ULONG actual = 0;
@@ -506,12 +515,12 @@ extern "C" BOOL WINAPI DllMain(HINSTANCE instance, DWORD reason, LPVOID)
     return TRUE;
 }
 
-extern "C" __declspec(dllexport) HRESULT __stdcall DllCanUnloadNow()
+STDAPI DllCanUnloadNow(void)
 {
     return g_objects.load() == 0 && g_locks.load() == 0 ? S_OK : S_FALSE;
 }
 
-extern "C" __declspec(dllexport) HRESULT __stdcall DllGetClassObject(
+STDAPI DllGetClassObject(
     REFCLSID clsid, REFIID riid, void** object)
 {
     if (clsid != CLSID_PCWordTsfProbe) return CLASS_E_CLASSNOTAVAILABLE;
@@ -522,7 +531,7 @@ extern "C" __declspec(dllexport) HRESULT __stdcall DllGetClassObject(
     return hr;
 }
 
-extern "C" __declspec(dllexport) HRESULT __stdcall DllRegisterServer()
+STDAPI DllRegisterServer(void)
 {
     HRESULT hr = RegisterComServer();
     if (FAILED(hr)) return hr;
@@ -538,7 +547,7 @@ extern "C" __declspec(dllexport) HRESULT __stdcall DllRegisterServer()
     return hr;
 }
 
-extern "C" __declspec(dllexport) HRESULT __stdcall DllUnregisterServer()
+STDAPI DllUnregisterServer(void)
 {
     const HRESULT initHr = CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED);
     UnregisterTsfProfile();
