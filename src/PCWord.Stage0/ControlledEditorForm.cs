@@ -76,29 +76,37 @@ internal sealed class ControlledEditorForm : Form
 
         if (e.Control && e.KeyCode == Keys.Space)
         {
-            AcceptSuggestion(0);
-            e.Handled = true;
-            e.SuppressKeyPress = true;
+            if (AcceptSuggestion(0))
+            {
+                e.Handled = true;
+                e.SuppressKeyPress = true;
+            }
             return;
         }
 
         if (e.Control && e.KeyCode is Keys.D1 or Keys.NumPad1)
         {
-            AcceptSuggestion(0);
-            e.Handled = true;
-            e.SuppressKeyPress = true;
+            if (AcceptSuggestion(0))
+            {
+                e.Handled = true;
+                e.SuppressKeyPress = true;
+            }
         }
         else if (e.Control && e.KeyCode is Keys.D2 or Keys.NumPad2)
         {
-            AcceptSuggestion(1);
-            e.Handled = true;
-            e.SuppressKeyPress = true;
+            if (AcceptSuggestion(1))
+            {
+                e.Handled = true;
+                e.SuppressKeyPress = true;
+            }
         }
         else if (e.Control && e.KeyCode is Keys.D3 or Keys.NumPad3)
         {
-            AcceptSuggestion(2);
-            e.Handled = true;
-            e.SuppressKeyPress = true;
+            if (AcceptSuggestion(2))
+            {
+                e.Handled = true;
+                e.SuppressKeyPress = true;
+            }
         }
     }
 
@@ -143,7 +151,7 @@ internal sealed class ControlledEditorForm : Form
         popup.ShowSuggestions(this, candidates, screenAnchor);
     }
 
-    private void AcceptSuggestion(int index)
+    private bool AcceptSuggestion(int index)
     {
         if (!editor.Focused || sensitive.Checked ||
             !StringComparer.Ordinal.Equals(editor.Text, suggestionText) ||
@@ -153,7 +161,7 @@ internal sealed class ControlledEditorForm : Form
         {
             popup.Hide();
             DismissSuggestions();
-            return;
+            return false;
         }
 
         try
@@ -170,12 +178,20 @@ internal sealed class ControlledEditorForm : Form
             editor.SelectionLength = 0;
             dismissedContextKey = CurrentContextKey();
             editor.Focus();
+            if (!StringComparer.Ordinal.Equals(editor.Text, result.Text) || editor.SelectionStart != result.Caret)
+            {
+                MessageBox.Show(this, "The editor did not match the requested replacement.", "Suggestion not verified",
+                    MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return false;
+            }
+            return true;
         }
         catch (InvalidOperationException)
         {
             popup.Hide();
             MessageBox.Show(this, "The current field is not eligible for an edit.", "Suggestion not applied",
                 MessageBoxButtons.OK, MessageBoxIcon.Information);
+            return false;
         }
         finally
         {
