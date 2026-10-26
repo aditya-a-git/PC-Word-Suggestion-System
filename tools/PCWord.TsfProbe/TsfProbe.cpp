@@ -103,9 +103,12 @@ static HRESULT RegisterTsfProfile()
     hr = profiles->Register(CLSID_PCWordTsfProbe);
     if (SUCCEEDED(hr))
     {
-        // Register for all languages, but do not force this profile to become active.
+        // AddLanguageProfile requires a real LANGID; 0xFFFF is not a
+        // valid "all languages" sentinel. Register for the current user's
+        // locale and do not force this profile to become active.
+        const LANGID languageId = GetUserDefaultLangID();
         hr = profiles->AddLanguageProfile(CLSID_PCWordTsfProbe,
-            static_cast<LANGID>(-1), GUID_PCWordTsfProfile,
+            languageId, GUID_PCWordTsfProfile,
             L"PCWord TSF Feasibility Probe", -1, nullptr, 0, 0);
         if (FAILED(hr))
         {
