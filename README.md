@@ -1,46 +1,40 @@
-# PCWord — Stage 0.1 controlled editor
+# PCWord — Stage 3 controlled-editor popup prototype
 
-This is the first runnable feasibility harness for the Windows predictive typing assistant. It exercises a controlled WinForms `RichTextBox`: bounded context inspection, current-word/selection reporting, and explicit replacement/insertion. It is deliberately not a system-wide typing assistant.
+PCWord now includes a non-activating suggestion popup experiment inside the controlled WinForms editor. It displays up to three sample completions near the caret, supports deliberate keyboard acceptance and dismissal, and rejects acceptance when the text/caret snapshot is stale.
 
 ## Requirements
 
 - Windows 10/11 x64 (intended Windows 11 target)
 - .NET 10 SDK and Windows Desktop targeting pack
 
-The current environment has .NET runtimes but **no .NET SDK**, so the project has not been compiled or run here. Install the .NET 10 SDK from Microsoft's .NET download page, then run from this directory:
+Run from the repository root:
 
-```powershell
-dotnet run --project .\Stage0\PCWord.Stage0.csproj
-```
+    dotnet restore .\PCWord.sln
+    dotnet test .\PCWord.sln --configuration Release
+    dotnet run --project .\src\PCWord.Stage0\PCWord.Stage0.csproj
 
-Or publish a self-contained folder:
+## Try the Stage 3 popup
 
-```powershell
-dotnet publish .\Stage0\PCWord.Stage0.csproj -c Release -r win-x64 --self-contained true
-```
+1. Launch the controlled editor and click **Load sample text**, or type a word prefix such as **progr**, **comp**, or **hel**.
+2. A small popup should appear close to the caret when the prefix matches the demo candidate list.
+3. Press **Ctrl+Space** or **Ctrl+1** to accept the first candidate. **Ctrl+2** and **Ctrl+3** accept the second and third candidates when available.
+4. Press **Escape** to dismiss suggestions for the current text/caret state. Typing or moving the caret allows the popup to refresh.
+5. Enable **Treat this field as sensitive** and confirm that suggestions disappear.
+6. Select text or move focus away; the popup should hide rather than apply an edit to an uncertain context.
 
-## Try the harness
+## Scope and limitations
 
-1. Type a few sentences into the top editor.
-2. Move the caret into a word, place it within a word, or select a range.
-3. Observe the lower panel's caret UTF-16 offset, selection, word around the caret, and up to 80 preceding / 40 following characters.
-4. Use the explicit replace/insert buttons and inspect the resulting text and caret.
-5. Try an empty position, punctuation, Unicode letters, a selection spanning text, and an edit at the start/end of the buffer.
+- The popup uses WinForms' non-activation styles and is positioned using caret geometry from the RichTextBox owned by this app. This does **not** prove correct caret geometry or focus behavior in other applications.
+- Suggestions currently come from a tiny, hard-coded demo vocabulary. Stage 4 will connect the popup to the Stage 1 dictionary prediction engine.
+- The popup is not a system-wide overlay. No TSF adapter, global keyboard hook, cross-process text editing, or universal compatibility is implemented.
+- Acceptance rechecks the current text, selection and caret snapshot before replacing the current word in the controlled editor. This local proof does not replace adapter-level edit verification for a future system integration.
+- Keyboard acceptance and Escape dismissal are implemented. Mouse selection is intentionally omitted until it can be tested without activation/focus disruption.
+- No typed text is logged or persisted; the popup operates on transient in-memory editor state.
 
-## Scope and limits
+## Project notes
 
-- The app reads and edits only its own `RichTextBox`, using WinForms text and selection properties. That makes the harness controlled and deterministic; it does **not** establish TSF, UI Automation, keyboard hook, caret geometry, or cross-process behavior.
-- Caret offsets are .NET UTF-16 string offsets. The displayed `Focused control` is a simple app-level diagnostic, not a Windows focus identity API.
-- The current-word expansion uses letters, digits, underscore, and apostrophe. This is an experiment, not a complete Unicode word-boundary implementation.
-- No prediction engine, global hook, popup, startup integration, persistence, telemetry, or raw-key logging is implemented.
-- Buttons perform direct edits inside the controlled editor only. No external application can be changed by this app.
-
-## Stage 0 documentation
-
-- [Architecture decisions](docs/architecture-decisions.md)
-- [Compatibility matrix](docs/compatibility-matrix.md)
-- [Privacy model](docs/privacy-model.md)
-- [Testing guide](docs/testing-guide.md)
-- [Experiments and next steps](tools/feasibility/README.md)
-
-The supplied planning references remain under `sources/` and are treated as read-only.
+- Architecture decisions: docs/architecture-decisions.md
+- Compatibility matrix: docs/compatibility-matrix.md
+- Privacy model: docs/privacy-model.md
+- Testing guide: docs/testing-guide.md
+- Implementation plan: plan.md
