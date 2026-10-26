@@ -25,3 +25,16 @@
 **Limitations.** The contract does not prove that TSF, UI Automation, or another adapter can provide every field reliably. The manager stores only the latest bounded snapshot; it does not retain document history, persist text, or log it. A real adapter must verify field identity, context version and expected text before applying an edit. IME composition is conservatively excluded rather than interpreted.
 
 **Exit gate.** Simulated unit tests validate context classification, bounds, field changes, invalidation, sensitivity/composition/selection exclusions and stale-version rejection. Stage 2's live adapter integration remains pending the Stage 0 Windows API feasibility decision and manual testing.
+
+
+## ADR-0003: controlled-editor non-activating popup prototype
+
+**Status:** Implemented as a Stage 3 controlled-editor experiment; not selected as the production system-wide popup or input architecture.
+
+**Decision.** Add a small WinForms popup with non-activation window styles, up to three candidates, keyboard acceptance (Ctrl+Space and Ctrl+1/2/3), and Escape dismissal. Keep the candidate state platform-neutral and versioned so out-of-order suggestion updates are rejected and acceptance requires an exact context version, field identity, and valid candidate index. The controlled editor also rechecks the text and selection snapshot immediately before its local replacement.
+
+**Evidence and scope.** The popup is hosted by the Stage 0 WinForms application and positions itself using the owned RichTextBox caret geometry. A small fixed demonstration vocabulary is filtered by the typed prefix. Unit tests cover candidate count, case-insensitive deduplication, empty results, field clearing, stale versions, acceptance validation, and dismissal. CI compilation/tests and a manual Windows interaction run are separate forms of evidence; the latter remains required.
+
+**Trade-offs and limitations.** WinForms non-activation flags are a prototype, not proof of focus behavior across Windows configurations. Owned-control caret coordinates do not demonstrate cross-process caret geometry. Mouse selection is omitted because a click could activate the popup and disrupt typing. The demo vocabulary is temporary; Stage 4 connects the actual dictionary engine. The controlled editor does not implement the Stage 2 IInputAdapter or provide system-wide typing support.
+
+**Exit gate.** On Windows, manually verify popup positioning, no focus theft during typing, keyboard acceptance, Escape dismissal, sensitive-field suppression, stale-context rejection, and exact text/caret after edits. Do not claim Stage 3 complete until those interactive checks pass.
