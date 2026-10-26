@@ -5,7 +5,7 @@ if(NOT WIN32)
   message(FATAL_ERROR "PCWord.TsfProbe is Windows-only.")
 endif()
 
-add_library(PCWordTsfProbe SHARED TsfProbe.cpp)
+add_library(PCWordTsfProbe SHARED TsfProbe.cpp PCWordTsfProbe.def)
 target_compile_features(PCWordTsfProbe PRIVATE cxx_std_17)
 target_compile_definitions(PCWordTsfProbe PRIVATE UNICODE _UNICODE WIN32_LEAN_AND_MEAN NOMINMAX)
 target_link_libraries(PCWordTsfProbe PRIVATE ole32 advapi32 uuid)
