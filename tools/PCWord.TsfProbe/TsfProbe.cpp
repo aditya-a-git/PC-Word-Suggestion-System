@@ -99,6 +99,8 @@ static HRESULT RegisterComServer()
     return S_OK;
 }
 
+static void UnregisterTsfProfile();
+
 static HRESULT RegisterTsfProfile()
 {
     // Clean up this service's own state left by an interrupted prior attempt.
