@@ -1,3 +1,4 @@
+using Xunit;
 using PCWord.Core.Suggestions;
 
 namespace PCWord.Tests;
