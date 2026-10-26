@@ -25,7 +25,7 @@ A read-only UI Automation probe is available at `tools/PCWord.WindowsProbe`. Run
 
     dotnet run --project .\tools\PCWord.WindowsProbe\PCWord.WindowsProbe.csproj
 
-Focus a non-sensitive test field in another application. The probe reports UI Automation capabilities and bounded context lengths, never text content. It does not edit text and is not a system-wide typing adapter. Follow `tools/PCWord.WindowsProbe/README.md` and record observations in `docs/compatibility-matrix.md`.
+By default, the probe reports focused-control metadata without reading surrounding text. Only when focused on synthetic test text, explicitly opt in to bounded context reads with `dotnet run --project .\\tools\\PCWord.WindowsProbe\\PCWord.WindowsProbe.csproj -- --allow-context-read`. It never prints text content and does not edit text; it is not a system-wide typing adapter. Follow `tools/PCWord.WindowsProbe/README.md` and record observations in `docs/compatibility-matrix.md`.
 
 ## Scope and limitations
 
