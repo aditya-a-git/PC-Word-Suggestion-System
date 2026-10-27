@@ -8,22 +8,26 @@ Context reads require both:
 - explicit opt-in via `PCWORD_TSF_ALLOW_CONTEXT_READ=1` in the host process environment; and
 - a positively observed `InputScopeStatus::NonSensitive` classification.
 
-The safety policy is isolated in `InputSafetyPolicy.h`. `Sensitive` and `Unknown` both deny context reads. Failed property access, failed interface queries, empty scope metadata, and unrecognized values must remain `Unknown`.
+The safety decision is isolated in `InputSafetyPolicy.h`. Its compile-time tests are in `tests/InputSafetyPolicyTests.cpp` and are registered with CTest when `BUILD_TESTING` is enabled. `Sensitive` and `Unknown` both deny context reads.
 
-## Current blocker
+## Input-scope retrieval status
 
-The latest captured DebugView log shows `GUID_PROP_INPUTSCOPE GetValue` returning `0x80004005` (`E_FAIL`) during edit notifications. The resulting classification is unknown and context reads are skipped. The same log reports `opt-in=no`, so it does not yet verify that the test host inherited the opt-in environment variable.
+The documented API path is `ITfContext::GetAppProperty(GUID_PROP_INPUTSCOPE, ...)`, followed by `ITfReadOnlyProperty::GetValue(cookie, range, ...)`, then querying the returned interface for `ITfInputScope`. See [Microsoft's ITfInputScope documentation](https://learn.microsoft.com/en-us/windows/win32/api/inputscope/nn-inputscope-itfinputscope).
 
-This is an unresolved TSF property-access issue, not evidence that text-context reads are working. Do not relax the fail-closed rule or use text reads in unknown/sensitive fields to get around it.
+The latest captured DebugView log shows `GUID_PROP_INPUTSCOPE GetValue` returning `0x80004005` (`E_FAIL`). The code now consistently returns `InputScopeStatus::Unknown` on that failure, so context reads remain denied. This commit does **not** claim to resolve the runtime property-access failure. The same log reported `opt-in=no`, so it also does not verify opt-in behavior in a fresh host process.
 
 ## Next verification
 
-1. Build the DLL after closing any process that has loaded it.
-2. Start a fresh test host from a shell that has `PCWORD_TSF_ALLOW_CONTEXT_READ=1` set.
-3. Confirm the log reports `opt-in=yes`.
-4. Diagnose the TSF input-scope property retrieval separately. Keep reads denied until a safe classification is positively established.
-5. After that succeeds, verify context acquisition only in a controlled non-sensitive editor and verify password-field behavior remains blocked.
+1. Configure and build on Windows:
+   ```powershell
+   cmake -S .\tools\PCWord.TsfProbe -B .\tools\PCWord.TsfProbe\build -A x64
+   cmake --build .\tools\PCWord.TsfProbe\build --config Release
+   ctest --test-dir .\tools\PCWord.TsfProbe\build -C Release --output-on-failure
+   ```
+2. Start a fresh test host from a shell where `PCWORD_TSF_ALLOW_CONTEXT_READ=1` is set before the host starts, and confirm the log reports `opt-in=yes`.
+3. Investigate why the host's `ITfReadOnlyProperty::GetValue` returns `E_FAIL`; keep reads denied while the scope is unknown.
+4. Once positive scope classification works, verify context acquisition in a controlled non-sensitive editor and confirm password fields remain blocked.
 
 ## Scope of this milestone
 
-This refactor makes the privacy decision explicit and independently reviewable. It does not claim that the TSF property lookup is fixed, nor that the DLL has been rebuilt or tested on the developer machine.
+This change fixes an invalid integer return in the enum-class error path and adds compile-time tests for the privacy policy. It does not claim that the DLL has been built or runtime-tested on the developer machine, nor that the TSF property lookup is fixed.
