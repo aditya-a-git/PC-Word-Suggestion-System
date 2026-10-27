@@ -42,10 +42,19 @@ public static class TextEditValidator
         if (snapshot.SelectionLength != 0 || snapshot.IsComposing)
             return TextEditValidationResult.Refused(TextEditStatus.Unsupported);
 
+        if (request.ExpectedText is null || request.Replacement is null ||
+            request.ExpectedText.Length > InputContextSnapshot.MaximumTextBeforeCaret ||
+            request.Replacement.Length > 256)
+            return TextEditValidationResult.Refused(TextEditStatus.Unsupported);
+
         string expectedPrefix;
         try
         {
             expectedPrefix = GetTrailingWord(snapshot.TextBeforeCaret);
+            if (snapshot.TextBeforeCaret.Length == InputContextSnapshot.MaximumTextBeforeCaret &&
+                expectedPrefix.Length == snapshot.TextBeforeCaret.Length &&
+                IsWordRune(Rune.GetRuneAt(snapshot.TextBeforeCaret, 0)))
+                return TextEditValidationResult.Refused(TextEditStatus.Unsupported);
             if (HasWordContinuationAtCaret(snapshot.TextAfterCaret))
                 return TextEditValidationResult.Refused(TextEditStatus.Unsupported);
         }
@@ -57,9 +66,6 @@ public static class TextEditValidator
 
         if (expectedPrefix.Length == 0 || !StringComparer.Ordinal.Equals(expectedPrefix, request.ExpectedText))
             return TextEditValidationResult.Refused(TextEditStatus.StaleContext);
-
-        if (request.Replacement is null || request.ExpectedText is null)
-            return TextEditValidationResult.Refused(TextEditStatus.Failed);
 
         bool candidateIsCurrent = currentCandidates.Contains(request.Replacement, StringComparer.Ordinal);
         if (!candidateIsCurrent || request.Replacement.Length <= expectedPrefix.Length ||

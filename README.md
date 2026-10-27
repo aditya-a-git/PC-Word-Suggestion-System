@@ -42,3 +42,9 @@ See `tools/PCWord.TsfProbe/README.md` for build, per-user registration, explicit
 - No typed text is logged or persisted. No production TSF adapter, global keyboard hook, or universal compatibility is claimed.
 
 See `docs/testing-guide.md`, `docs/compatibility-matrix.md`, `docs/privacy-model.md`, and `docs/architecture-decisions.md`.
+
+## Current integration boundary
+
+The controlled editor now connects a bounded, in-process adapter to the existing local dictionary completion pipeline. The editor's own RichTextBox is the only supported source. The adapter suppresses unknown/unavailable, sensitive, selected, composing, unfocused, or disabled contexts and applies only a version-matched explicit prefix replacement. Automated managed tests pass; interactive Windows verification remains pending.
+
+The TSF and UI Automation components remain feasibility probes. There is no cross-process adapter, IPC, TSF write edit session, system-wide popup, or external-application compatibility claim. No raw keystrokes are collected or logged. See `docs/windows-integration-status.md` and `docs/testing-guide.md` for exact scope and manual verification steps.

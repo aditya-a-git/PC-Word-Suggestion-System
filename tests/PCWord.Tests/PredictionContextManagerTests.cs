@@ -23,12 +23,12 @@ public sealed class PredictionContextManagerTests
     {
         var manager = new PredictionContextManager(maximumPrecedingCharacters: 9, maximumFollowingCharacters: 3);
 
-        Assert.True(manager.TryUpdate(Snapshot(1, "older hello dev", "eloper")));
+        Assert.True(manager.TryUpdate(Snapshot(1, "older hello dev", "!xy")));
 
         Assert.Equal(PredictionContextStatus.PartialWord, manager.Current.Status);
         Assert.Equal("dev", manager.Current.Prefix);
         Assert.Equal("hello dev", manager.Current.PrecedingText);
-        Assert.Equal("elo", manager.Current.FollowingText);
+        Assert.Equal("!xy", manager.Current.FollowingText);
         Assert.True(manager.Current.CanPredictCompletion);
         Assert.False(manager.Current.CanPredictNextWord);
     }
@@ -133,11 +133,11 @@ public sealed class PredictionContextManagerTests
     [Fact]
     public void TrimmingDoesNotSplitSurrogatePairs()
     {
-        var manager = new PredictionContextManager(maximumPrecedingCharacters: 2, maximumFollowingCharacters: 2);
-        manager.TryUpdate(Snapshot(1, "x𐐀", "𐐀y"));
+        var manager = new PredictionContextManager(maximumPrecedingCharacters: 3, maximumFollowingCharacters: 3);
+        manager.TryUpdate(Snapshot(1, "x𐐀!", "!𐐀y"));
 
-        Assert.Equal("𐐀", manager.Current.PrecedingText);
-        Assert.Equal("𐐀", manager.Current.FollowingText);
+        Assert.Equal("𐐀!", manager.Current.PrecedingText);
+        Assert.Equal("!𐐀", manager.Current.FollowingText);
     }
 
     [Fact]
@@ -147,6 +147,19 @@ public sealed class PredictionContextManagerTests
         manager.TryUpdate(Snapshot(1, "we can't"));
 
         Assert.Equal("can't", manager.Current.Prefix);
+    }
+
+    [Fact]
+    public void MidWordCaretIsIneligibleUntilWordEnd()
+    {
+        var manager = new PredictionContextManager();
+
+        manager.TryUpdate(Snapshot(1, "typed hel", "lo"));
+
+        Assert.Equal(PredictionContextStatus.Ineligible, manager.Current.Status);
+        Assert.Empty(manager.Current.Prefix);
+        Assert.Empty(manager.Current.PrecedingText);
+        Assert.Empty(manager.Current.FollowingText);
     }
 
     [Fact]

@@ -75,3 +75,15 @@
 **Consequences.** The current implementation does not yet provide a production cross-process adapter, system-wide popup, or system-wide acceptance operation. These must be implemented only after the supported field set and edit semantics are demonstrated. No broad compatibility claim is allowed based on the API design alone.
 
 **Exit gate.** Build and run CTest on Windows, verify scope classification and opt-in behavior with synthetic text, record results by application/field, then implement version-checked edit acceptance through TSF edit sessions. Do not begin contextual next-word prediction until the integration gate is met.
+
+## ADR-0006: use a bounded in-process adapter for the owned editor; keep external integration disabled
+
+**Status:** Implemented for PCWord's WinForms editor; external Windows integration remains an experiment.
+
+**Decision.** Implement `IInputAdapter` directly over PCWord's own `RichTextBox`. Read only bounded RichEdit ranges around the caret; publish a per-control identity and monotonically increasing snapshot version; suppress context for disabled, unfocused, selected, sensitive, composing, unavailable, or malformed contexts. Connect snapshots to the existing context manager and dictionary ranking pipeline. Apply only a current explicitly accepted prefix replacement and verify the resulting text/caret.
+
+**Rationale.** The existing owned field supplies a stable text/control boundary and can make edits through its own selection APIs. The TSF probe has not established stable safe context access across hosts, an edit-session operation, or reliable sensitivity classification. UI Automation TextPattern is read-only and provider-dependent. A new IPC layer would not solve these unproven facts, so no cross-process transport or privileged access is added.
+
+**Trade-offs and limits.** This is a real adapter implementation for the owned control, not an external-app adapter. It uses bounded reads, transient memory and no key hooks. Caret bounds come from the owned control and still require interactive verification. The native TSF `GetValue` E_FAIL remains unresolved and is treated as unknown. External applications receive no predictions or edits.
+
+**Verification gate.** The managed build and automated tests pass, but the controlled WinForms UI must still be manually exercised with synthetic text. Do not claim cross-application compatibility or pass the Stage 4 integration gate until a supported host demonstrates safe context, authorized edit behavior, and popup focus/positioning in repeatable tests.

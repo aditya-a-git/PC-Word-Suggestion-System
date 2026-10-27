@@ -1,4 +1,5 @@
 using System.Text;
+using System.Globalization;
 using PCWord.Core.Input;
 
 namespace PCWord.Prediction.Context;
@@ -94,10 +95,32 @@ public sealed class PredictionContextManager
         string following = TrimEndWithoutSplittingSurrogate(
             snapshot.TextAfterCaret, _maximumFollowingCharacters);
 
-        string prefix = GetTrailingWord(preceding);
-        PredictionContextStatus status = prefix.Length > 0
-            ? PredictionContextStatus.PartialWord
-            : PredictionContextStatus.WordBoundary;
+        string prefix;
+        PredictionContextStatus status;
+        try
+        {
+            prefix = GetTrailingWord(preceding);
+            bool caretIsInsideWord = following.Length > 0 &&
+                IsWordRune(Rune.GetRuneAt(following, 0));
+            status = caretIsInsideWord
+                ? PredictionContextStatus.Ineligible
+                : prefix.Length > 0
+                    ? PredictionContextStatus.PartialWord
+                    : PredictionContextStatus.WordBoundary;
+        }
+        catch (ArgumentException)
+        {
+            _current = new PredictionContext(snapshot.Version, snapshot.FieldId,
+                PredictionContextStatus.Unavailable, string.Empty, string.Empty, string.Empty);
+            return true;
+        }
+
+        if (status == PredictionContextStatus.Ineligible)
+        {
+            _current = new PredictionContext(snapshot.Version, snapshot.FieldId,
+                PredictionContextStatus.Ineligible, string.Empty, string.Empty, string.Empty);
+            return true;
+        }
 
         _current = new PredictionContext(snapshot.Version, snapshot.FieldId, status,
             prefix, preceding, following);
@@ -139,8 +162,12 @@ public sealed class PredictionContextManager
         return text[start..];
     }
 
-    private static bool IsWordRune(Rune rune) =>
-        Rune.IsLetterOrDigit(rune) || rune.Value == '_' || rune.Value == '\'' || rune.Value == 0x2019;
+    private static bool IsWordRune(Rune rune)
+    {
+        UnicodeCategory category = Rune.GetUnicodeCategory(rune);
+        return Rune.IsLetterOrDigit(rune) || rune.Value is '_' or '\'' or 0x2019 ||
+            category is UnicodeCategory.NonSpacingMark or UnicodeCategory.SpacingCombiningMark or UnicodeCategory.EnclosingMark;
+    }
 
     private static int PreviousRuneStart(string text, int index) =>
         index >= 2 && char.IsLowSurrogate(text[index - 1]) && char.IsHighSurrogate(text[index - 2])

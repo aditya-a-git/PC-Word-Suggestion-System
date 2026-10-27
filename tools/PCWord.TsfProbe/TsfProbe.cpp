@@ -358,18 +358,24 @@ public:
         ULONG fetched = 0;
         HRESULT hr = context->GetSelection(cookie, TF_DEFAULT_SELECTION, 1,
             &selection, &fetched);
-        if (FAILED(hr) || fetched != 1 || !selection.range)
+        if (hr != S_OK || fetched != 1 || !selection.range)
         {
-            Trace(L"Edit notification received; selection/caret unavailable.");
+            if (hr != S_OK)
+                TraceHr(L"ITfContext::GetSelection", hr);
+            else
+                Trace(L"ITfContext::GetSelection returned no single caret range.");
             if (selection.range) selection.range->Release();
             return S_OK;
         }
 
         BOOL isEmpty = FALSE;
         hr = selection.range->IsEmpty(cookie, &isEmpty);
-        if (FAILED(hr) || !isEmpty)
+        if (hr != S_OK || !isEmpty)
         {
-            Trace(L"Edit notification received; non-collapsed or unknown selection, context skipped.");
+            if (hr != S_OK)
+                TraceHr(L"ITfRange::IsEmpty", hr);
+            else
+                Trace(L"ITfRange::IsEmpty reported a non-collapsed selection; context skipped.");
             selection.range->Release();
             return S_OK;
         }
@@ -382,12 +388,20 @@ public:
         bool caretRectAvailable = false;
 
         ITfContextView* view = nullptr;
-        if (SUCCEEDED(context->GetActiveView(&view)) && view)
+        hr = context->GetActiveView(&view);
+        if (hr == S_OK && view)
         {
             BOOL clipped = FALSE;
-            caretRectAvailable = SUCCEEDED(view->GetTextExt(cookie, selection.range,
-                &caretRect, &clipped));
+            hr = view->GetTextExt(cookie, selection.range, &caretRect, &clipped);
+            caretRectAvailable = hr == S_OK;
+            if (!caretRectAvailable)
+                TraceHr(L"ITfContextView::GetTextExt", hr);
             view->Release();
+        }
+        else
+        {
+            TraceHr(L"ITfContext::GetActiveView", hr);
+            if (view) view->Release();
         }
 
         if (allowRead)
@@ -424,16 +438,18 @@ private:
         DetachContext();
 
         ITfSource* source = nullptr;
-        if (FAILED(context->QueryInterface(IID_ITfSource,
-            reinterpret_cast<void**>(&source))))
+        HRESULT hr = context->QueryInterface(IID_ITfSource,
+            reinterpret_cast<void**>(&source));
+        if (hr != S_OK || !source)
         {
-            Trace(L"TSF context does not expose an event source.");
+            TraceHr(L"ITfContext::QueryInterface(ITfSource)", hr);
+            if (source) source->Release();
             return;
         }
-        HRESULT hr = source->AdviseSink(IID_ITfTextEditSink,
+        hr = source->AdviseSink(IID_ITfTextEditSink,
             static_cast<ITfTextEditSink*>(this), &m_contextSinkCookie);
         source->Release();
-        if (SUCCEEDED(hr))
+        if (hr == S_OK)
         {
             m_context = context;
             m_context->AddRef();
@@ -441,7 +457,7 @@ private:
         }
         else
         {
-            Trace(L"TSF context edit notifications unavailable.");
+            TraceHr(L"ITfSource::AdviseSink(ITfTextEditSink)", hr);
         }
     }
 
@@ -453,7 +469,10 @@ private:
             reinterpret_cast<void**>(&source))))
         {
             if (m_contextSinkCookie != TF_INVALID_COOKIE)
-                source->UnadviseSink(m_contextSinkCookie);
+            {
+                HRESULT hr = source->UnadviseSink(m_contextSinkCookie);
+                if (FAILED(hr)) TraceHr(L"ITfSource::UnadviseSink(ITfTextEditSink)", hr);
+            }
             source->Release();
         }
         m_contextSinkCookie = TF_INVALID_COOKIE;
@@ -508,7 +527,7 @@ private:
             ITfInputScope* inputScope = nullptr;
             hr = value.punkVal->QueryInterface(IID_ITfInputScope,
                 reinterpret_cast<void**>(&inputScope));
-            if (FAILED(hr) || !inputScope)
+            if (hr != S_OK || !inputScope)
             {
                 TraceHr(L"IUnknown::QueryInterface(IID_ITfInputScope)", hr);
             }
@@ -517,7 +536,7 @@ private:
                 InputScope* scopes = nullptr;
                 UINT count = 0;
                 hr = inputScope->GetInputScopes(&scopes, &count);
-                if (FAILED(hr))
+                if (hr != S_OK)
                 {
                     TraceHr(L"ITfInputScope::GetInputScopes", hr);
                 }
@@ -537,7 +556,12 @@ private:
             Trace(L"GUID_PROP_INPUTSCOPE value is not a VT_UNKNOWN interface.");
         }
 
-        VariantClear(&value);
+        hr = VariantClear(&value);
+        if (FAILED(hr))
+        {
+            TraceHr(L"VariantClear(GUID_PROP_INPUTSCOPE)", hr);
+            classification = pcword::input::FieldClassification::Unknown;
+        }
         return classification;
     }
     static void ReadBoundedLengths(TfEditCookie cookie, ITfRange* caret,
@@ -547,40 +571,58 @@ private:
         *afterCount = -1;
 
         ITfRange* before = nullptr;
-        if (SUCCEEDED(caret->Clone(&before)) && before)
+        HRESULT hr = caret->Clone(&before);
+        if (hr == S_OK && before)
         {
-            if (SUCCEEDED(before->Collapse(cookie, TF_ANCHOR_START)))
+            hr = before->Collapse(cookie, TF_ANCHOR_START);
+            if (hr == S_OK)
             {
                 LONG shifted = 0;
-                if (SUCCEEDED(before->ShiftStart(cookie, -kBeforeLimit, &shifted, nullptr)))
+                hr = before->ShiftStart(cookie, -kBeforeLimit, &shifted, nullptr);
+                if (hr == S_OK)
                 {
                     std::vector<WCHAR> buffer(static_cast<size_t>(kBeforeLimit) + 1, L'\0');
                     ULONG actual = 0;
-                    if (SUCCEEDED(before->GetText(cookie, 0, buffer.data(),
-                        static_cast<ULONG>(buffer.size()), &actual)))
+                    hr = before->GetText(cookie, 0, buffer.data(),
+                        static_cast<ULONG>(buffer.size()), &actual);
+                    if (hr == S_OK)
                         *beforeCount = static_cast<LONG>(actual);
+                    else
+                        TraceHr(L"ITfRange::GetText(before caret)", hr);
                 }
+                else TraceHr(L"ITfRange::ShiftStart(before caret)", hr);
             }
+            else TraceHr(L"ITfRange::Collapse(before caret)", hr);
             before->Release();
         }
+        else TraceHr(L"ITfRange::Clone(before caret)", hr);
 
         ITfRange* after = nullptr;
-        if (SUCCEEDED(caret->Clone(&after)) && after)
+        hr = caret->Clone(&after);
+        if (hr == S_OK && after)
         {
-            if (SUCCEEDED(after->Collapse(cookie, TF_ANCHOR_END)))
+            hr = after->Collapse(cookie, TF_ANCHOR_END);
+            if (hr == S_OK)
             {
                 LONG shifted = 0;
-                if (SUCCEEDED(after->ShiftEnd(cookie, kAfterLimit, &shifted, nullptr)))
+                hr = after->ShiftEnd(cookie, kAfterLimit, &shifted, nullptr);
+                if (hr == S_OK)
                 {
                     std::vector<WCHAR> buffer(static_cast<size_t>(kAfterLimit) + 1, L'\0');
                     ULONG actual = 0;
-                    if (SUCCEEDED(after->GetText(cookie, 0, buffer.data(),
-                        static_cast<ULONG>(buffer.size()), &actual)))
+                    hr = after->GetText(cookie, 0, buffer.data(),
+                        static_cast<ULONG>(buffer.size()), &actual);
+                    if (hr == S_OK)
                         *afterCount = static_cast<LONG>(actual);
+                    else
+                        TraceHr(L"ITfRange::GetText(after caret)", hr);
                 }
+                else TraceHr(L"ITfRange::ShiftEnd(after caret)", hr);
             }
+            else TraceHr(L"ITfRange::Collapse(after caret)", hr);
             after->Release();
         }
+        else TraceHr(L"ITfRange::Clone(after caret)", hr);
     }
 };
 

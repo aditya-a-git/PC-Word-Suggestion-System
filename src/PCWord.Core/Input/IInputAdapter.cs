@@ -8,6 +8,15 @@ public interface IInputAdapter
 {
     event EventHandler<InputContextChangedEventArgs>? ContextChanged;
 
+    /// <summary>Stops context collection and invalidates active candidates when disabled.</summary>
+    void SetEnabled(bool enabled);
+
+    /// <summary>
+    /// Supplies the exact current candidate set that an explicit edit may use. Adapters
+    /// must reject sets for an older context version or a different field identity.
+    /// </summary>
+    void SetCandidateSet(long contextVersion, string? fieldId, IReadOnlyList<string> candidates);
+
     ValueTask<TextEditResult> ApplyEditAsync(
         TextEditRequest request,
         CancellationToken cancellationToken = default);

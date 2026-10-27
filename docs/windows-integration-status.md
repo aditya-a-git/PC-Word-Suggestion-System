@@ -1,53 +1,32 @@
 # Windows integration implementation status
 
-## Scope
+## Implemented
 
-This document tracks the Windows-facing work before Stage 4 (contextual next-word prediction). The repository has a controlled WinForms editor and a native TSF feasibility probe, but those are not yet a production system-wide typing assistant.
+- The PCWord-owned WinForms `RichTextBox` has a concrete `IInputAdapter`. It reads at most 128 UTF-16 units before and 32 after the caret through bounded RichEdit range requests, publishes a per-control field ID and increasing context versions, and reports focus, selection, composition, sensitivity, caret offset, and screen bounds where available.
+- The adapter suppresses collection unless enabled, focused, unselected, not composing, and not marked sensitive. It does not install a keyboard hook, retain a document copy, log text, or send context over a process boundary.
+- `DictionaryCompletionCoordinator` routes eligible snapshots through the existing context manager, dictionary ranker, and casing formatter; it caps results at the existing three-candidate limit and rejects stale acceptance through version, field, candidate-provenance, and context checks.
+- Explicit completion in the owned editor replaces only the expected current prefix, then verifies the resulting bounded text and caret. This adapter does not edit other applications.
+- TSF diagnostics now identify failed COM/TSF methods and HRESULTs and retain fail-closed scope classification. The SDK portability failure in earlier CI runs was fixed in `fa7ba0b`.
 
-## Implemented in code
+## Not implemented or not established
 
-- A native per-user COM/TSF feasibility service with registration and unregister support.
-- TSF activation, document focus, edit notification, selection/caret geometry reporting.
-- Bounded context-count probe behind explicit process-environment opt-in.
-- A fail-closed input-scope policy: context reads require opt-in and a positive non-sensitive classification.
-- Explicit blocking for Windows input scopes marked Password, NumericPin, AlphanumericPin, NumericPassword, AlphanumericPassword, or Private.
-- Compile-time tests for the opt-in policy and sensitive-scope classifier, registered with CTest.
-- A separate UI Automation probe that reports metadata and, only with an explicit flag, bounded context lengths for synthetic test text.
-- A controlled-editor suggestion surface with explicit keyboard acceptance, dismissal, and stale-context checks.
+- There is no production cross-process TSF-to-.NET adapter or IPC boundary.
+- There is no TSF authorized write edit session or external-app acceptance operation. The current TSF component remains a diagnostic feasibility probe.
+- There is no system-wide popup. The existing child suggestion panel is confined to PCWord's own window and caret coordinates.
+- The owned-editor code has compiled and passed automated tests, but its live Windows UI behavior has not been manually verified in this task. No foreign application is claimed compatible.
+- UI Automation TextPattern remains read-only and provider-dependent. It is not used as an automatic editing fallback.
+- `ITfContext::GetAppProperty(GUID_PROP_INPUTSCOPE, ...)` is the documented property acquisition route. `ITfReadOnlyProperty::GetValue` may return `S_FALSE` for unsupported properties; the observed `E_FAIL` is unspecified. No demonstrated API misuse explains the recorded failure, so it remains unresolved and Unknown/denied.
 
-## Not implemented / not yet proven
+## Privacy and fallback
 
-- A production cross-process IInputAdapter connecting TSF context to the .NET prediction pipeline.
-- A production system-wide non-activating popup positioned at foreign caret coordinates.
-- A safe, verified cross-process edit/acceptance path.
-- Reliable sensitivity detection for every app/control. InputScope and UI Automation metadata are hints and may be absent or incorrect.
-- IME/composition support, per-app exclusions, global pause/status controls, and application lifecycle/settings integration.
-- Runtime compatibility across Notepad, browsers, Office, VS Code, terminals, elevated applications, remote sessions, and custom-rendered controls.
-- A Windows runtime pass proving that ITfReadOnlyProperty::GetValue succeeds in supported hosts. The recorded E_FAIL remains unresolved.
+Only the controlled editor can supply context to the completion pipeline. Unknown, unavailable, sensitive, selected, unfocused, disabled, or composing contexts produce no candidates and cannot be accepted. Candidate and context data are transient and bounded. No raw key events or typed text are logged or persisted. Other applications are left untouched.
 
-## Research findings
+## Verification
 
-Microsoft documents ITfContext::GetAppProperty(GUID_PROP_INPUTSCOPE, ...) followed by ITfReadOnlyProperty::GetValue(...) and querying the returned interface for ITfInputScope. The property API can return S_FALSE when the context owner does not support a property and E_FAIL for an unspecified failure. Therefore, a failed lookup is not evidence of a safe field and must remain Unknown.
+The latest GitHub Actions runs for `fa7ba0b` and `c36e077` succeeded. Earlier failures in runs 77–82 came from SDK-dependent InputScope identifiers in the native policy header; the portability fix was committed in `fa7ba0b`. Current local managed results and Windows manual checks are recorded in `docs/testing-guide.md`.
 
-Microsoft also documents ITfContext::RequestEditSession for obtaining read or read/write access. Text modifications must be performed in an authorized edit session; a read-only callback is not a valid place to mutate text. A future acceptance implementation must verify context version, field identity, expected text and selection immediately before requesting a write session, and must report failure when the host refuses the operation.
-
-Sources:
-- [ITfInputScope](https://learn.microsoft.com/en-us/windows/win32/api/inputscope/nn-inputscope-itfinputscope)
-- [ITfContext::GetAppProperty](https://learn.microsoft.com/en-us/windows/win32/api/msctf/nf-msctf-itfcontext-getappproperty)
-- [ITfContext::RequestEditSession](https://learn.microsoft.com/en-us/windows/win32/api/msctf/nf-msctf-itfcontext-requesteditsession)
-- [ITfInsertAtSelection::InsertTextAtSelection](https://learn.microsoft.com/en-us/windows/win32/api/msctf/nf-msctf-itfinsertatselection-inserttextatselection)
-
-## Required verification sequence
-
-1. Build the TSF probe with the Windows SDK and run CTest.
-2. Register it in a disposable Windows test account and confirm activation/focus/edit notifications.
-3. Reproduce or resolve GetValue failure using synthetic text. Keep context reads disabled until scope is positively classified.
-4. Verify Password, NumericPin, AlphanumericPin, NumericPassword, AlphanumericPassword and Private scopes are blocked; unknown scope must also be blocked.
-5. Test the UI Automation probe separately across the target application matrix. Record only capabilities/status, never typed text.
-6. Design and implement the production adapter only after the evidence establishes which fields expose stable context and caret geometry.
-7. Implement cross-process popup and explicit edit acceptance with version/field validation, then run regression tests for dropped/duplicated characters and focus theft.
-8. Update the compatibility matrix from actual runs, not API assumptions.
+On Windows, run the synthetic-text manual procedure in the testing guide. The TSF failure reproduction and application compatibility matrix remain unverified until those manual runs are recorded.
 
 ## Stage 4 gate
 
-Do not begin contextual prediction until Windows integration can produce a versioned, bounded, known-safe context in the supported test editor and can perform an explicit, verified accepted edit without losing or duplicating text. Compilation alone does not satisfy this gate.
+Stage 4 remains gated. A controlled-editor dictionary path is implemented, but interactive correctness has not been demonstrated in this run, and no tested production integration for external apps exists. Do not infer system-wide support or treat compilation as satisfying the integration gate.

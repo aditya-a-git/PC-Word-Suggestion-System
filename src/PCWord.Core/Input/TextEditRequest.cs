@@ -16,7 +16,9 @@ public enum TextEditStatus
     StaleContext = 1,
     Unsupported = 2,
     RefusedSensitiveField = 3,
-    Failed = 4
+    TimedOut = 4,
+    Cancelled = 5,
+    Failed = 6
 }
 
 public sealed record TextEditResult(TextEditStatus Status, string? Detail = null)
