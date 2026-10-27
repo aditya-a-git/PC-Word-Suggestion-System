@@ -630,12 +630,12 @@ extern "C" BOOL WINAPI DllMain(HINSTANCE instance, DWORD reason, LPVOID)
     return TRUE;
 }
 
-STDAPI DllCanUnloadNow(void)
+extern "C" HRESULT WINAPI DllCanUnloadNow(void)
 {
     return g_objects.load() == 0 && g_locks.load() == 0 ? S_OK : S_FALSE;
 }
 
-STDAPI DllGetClassObject(
+extern "C" HRESULT WINAPI DllGetClassObject(
     REFCLSID clsid, REFIID riid, void** object)
 {
     if (clsid != CLSID_PCWordTsfProbe) return CLASS_E_CLASSNOTAVAILABLE;
