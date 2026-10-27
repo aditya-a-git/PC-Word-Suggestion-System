@@ -6,6 +6,12 @@
 
 using pcword::input::ClassifyScopes;
 using pcword::input::FieldClassification;
+using pcword::input::PasswordScope;
+using pcword::input::PrivateScope;
+using pcword::input::NumericPasswordScope;
+using pcword::input::NumericPinScope;
+using pcword::input::AlphanumericPinScope;
+using pcword::input::AlphanumericPinSetScope;
 
 int main()
 {
@@ -25,8 +31,8 @@ int main()
     REQUIRE(ClassifyScopes(mixedUnknown, 2) == FieldClassification::Unknown);
 
     constexpr std::array<InputScope, 6> sensitiveScopes = {
-        IS_PASSWORD, IS_NUMERIC_PASSWORD, IS_NUMERIC_PIN,
-        IS_ALPHANUMERIC_PIN, IS_ALPHANUMERIC_PIN_SET, IS_PRIVATE
+        PasswordScope, NumericPasswordScope, NumericPinScope,
+        AlphanumericPinScope, AlphanumericPinSetScope, PrivateScope
     };
     for (InputScope scope : sensitiveScopes)
     {
