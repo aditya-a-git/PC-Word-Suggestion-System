@@ -13,3 +13,10 @@ set_target_properties(PCWordTsfProbe PROPERTIES
   OUTPUT_NAME "PCWordTsfProbe"
   CXX_EXTENSIONS OFF
 )
+
+include(CTest)
+if(BUILD_TESTING)
+  add_executable(InputSafetyPolicyTests tests/InputSafetyPolicyTests.cpp)
+  target_compile_features(InputSafetyPolicyTests PRIVATE cxx_std_17)
+  add_test(NAME InputSafetyPolicyTests COMMAND InputSafetyPolicyTests)
+endif()
