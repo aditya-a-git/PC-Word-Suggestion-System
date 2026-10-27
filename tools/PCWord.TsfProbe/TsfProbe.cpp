@@ -453,9 +453,16 @@ private:
     static int GetInputScopeStatus(ITfContext* context, TfEditCookie cookie,
         ITfRange* range)
     {
-        ITfReadOnlyProperty* property = nullptr;
-        HRESULT hr = context->GetAppProperty(PCWORD_GUID_PROP_INPUTSCOPE, &property);
-        if (FAILED(hr) || !property) return -1;
+        // GUID_PROP_INPUTSCOPE is a TSF text-range property. GetAppProperty()
+        // retrieves application properties and can leave the scope unknown.
+        ITfProperty* property = nullptr;
+        HRESULT hr = context->GetProperty(PCWORD_GUID_PROP_INPUTSCOPE, &property);
+        if (FAILED(hr) || !property)
+        {
+            TraceHr(L"ITfContext::GetProperty(GUID_PROP_INPUTSCOPE)", hr);
+            if (property) property->Release();
+            return -1;
+        }
 
         VARIANT value;
         VariantInit(&value);
@@ -463,35 +470,67 @@ private:
         property->Release();
         if (FAILED(hr))
         {
+            TraceHr(L"GUID_PROP_INPUTSCOPE GetValue", hr);
             VariantClear(&value);
             return -1;
         }
+
+        wchar_t message[128]{};
+        swprintf_s(message, L"InputScope VARIANT type=%u",
+            static_cast<unsigned int>(value.vt));
+        Trace(message);
 
         int scopeStatus = -1;
         if (value.vt == VT_UNKNOWN && value.punkVal)
         {
             ITfInputScope* inputScope = nullptr;
-            if (SUCCEEDED(value.punkVal->QueryInterface(IID_ITfInputScope,
-                reinterpret_cast<void**>(&inputScope))))
+            hr = value.punkVal->QueryInterface(IID_ITfInputScope,
+                reinterpret_cast<void**>(&inputScope));
+            if (FAILED(hr) || !inputScope)
+            {
+                TraceHr(L"InputScope QueryInterface(ITfInputScope)", hr);
+            }
+            else
             {
                 InputScope* scopes = nullptr;
                 UINT count = 0;
-                if (SUCCEEDED(inputScope->GetInputScopes(&scopes, &count)))
+                hr = inputScope->GetInputScopes(&scopes, &count);
+                if (FAILED(hr))
                 {
-                    scopeStatus = 0;
-                    for (UINT i = 0; i < count; ++i)
+                    TraceHr(L"ITfInputScope::GetInputScopes", hr);
+                }
+                else
+                {
+                    swprintf_s(message, L"InputScope count=%u",
+                        static_cast<unsigned int>(count));
+                    Trace(message);
+
+                    // Empty or unavailable metadata is not proof that a field
+                    // is safe to read. Fail closed unless at least one scope
+                    // was positively reported and none is IS_PASSWORD.
+                    if (count > 0 && scopes)
                     {
-                        if (scopes[i] == IS_PASSWORD)
+                        scopeStatus = 0;
+                        for (UINT i = 0; i < count; ++i)
                         {
-                            scopeStatus = 1;
-                            break;
+                            if (scopes[i] == IS_PASSWORD)
+                            {
+                                scopeStatus = 1;
+                                break;
+                            }
                         }
                     }
-                    CoTaskMemFree(scopes);
                 }
+
+                if (scopes) CoTaskMemFree(scopes);
                 inputScope->Release();
             }
         }
+        else
+        {
+            Trace(L"InputScope value is not a VT_UNKNOWN interface.");
+        }
+
         VariantClear(&value);
         return scopeStatus;
     }
