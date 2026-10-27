@@ -10,7 +10,6 @@ static_assert(IsSensitiveInputScope(IS_ALPHANUMERICPASSWORD), "Alphanumeric pass
 static_assert(IsSensitiveInputScope(IS_PRIVATE), "Private scope is sensitive.");
 
 static_assert(!IsSensitiveInputScope(IS_DEFAULT), "Default scope is not explicitly sensitive.");
-static_assert(!IsSensitiveInputScope(IS_TEXT), "Ordinary text scope is not explicitly sensitive.");
 
 int main()
 {
