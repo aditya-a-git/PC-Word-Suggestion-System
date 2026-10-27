@@ -458,8 +458,9 @@ private:
     static pcword::tsf::InputScopeStatus GetInputScopeStatus(
         ITfContext* context, TfEditCookie cookie, ITfRange* range)
     {
-        // GUID_PROP_INPUTSCOPE is a TSF text-range property. GetAppProperty()
-        // retrieves application properties and can leave the scope unknown.
+        // Microsoft documents GUID_PROP_INPUTSCOPE retrieval through
+        // ITfContext::GetAppProperty followed by ITfReadOnlyProperty::GetValue.
+        // A failed GetValue must remain Unknown; do not infer safety.
         ITfReadOnlyProperty* property = nullptr;
         HRESULT hr = context->GetAppProperty(PCWORD_GUID_PROP_INPUTSCOPE, &property);
         if (FAILED(hr) || !property)
@@ -477,7 +478,7 @@ private:
         {
             TraceHr(L"GUID_PROP_INPUTSCOPE GetValue", hr);
             VariantClear(&value);
-            return -1;
+            return pcword::tsf::InputScopeStatus::Unknown;
         }
 
         wchar_t message[128]{};
