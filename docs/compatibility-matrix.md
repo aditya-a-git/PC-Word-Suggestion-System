@@ -11,7 +11,7 @@
 | Office editor | UIA probe checks provider support | Probe reports selection and caret-geometry availability | No edit path | Probe implemented; manual result not yet recorded. |
 | VS Code editor | UIA probe checks provider support | Probe reports selection and caret-geometry availability | No edit path | Probe implemented; manual result not yet recorded. |
 | Terminal | UIA probe checks provider support | Probe reports selection and caret-geometry availability | No edit path | Probe implemented; manual result not yet recorded. |
-| Sensitive field | Harness checkbox suppresses suggestions; probe skips context if UIA marks password | Harness only; probe checks provider selection | No global edit path | Global sensitivity detection is not implemented. |
+| Sensitive field | UIA probe skips context for provider-reported password fields; TSF classifier blocks Password, PIN, and Private input scopes | No global edit path | No global edit path | Detection depends on host metadata; unknown scope must remain blocked. Runtime scope behavior is not yet verified. |
 | Elevated app, remote desktop, game/custom canvas | Unknown | Unknown | Unknown | Not tested; no compatibility claim. |
 
 ## Windows UI Automation probe
@@ -30,3 +30,8 @@ Run `dotnet run --project .\tools\PCWord.WindowsProbe\PCWord.WindowsProbe.csproj
 ## Manual test record template
 
 Record Windows build, application/version, exact field type, API/prototype and permission level. Record capability flags and pass/fail only; never copy typed text into notes. Do not infer results from another application in the same category.
+
+
+## TSF input-scope safety status
+
+The native TSF probe now treats Password, NumericPin, AlphanumericPin, NumericPassword, AlphanumericPassword, and Private input scopes as sensitive. The classifier and explicit opt-in gate have CTest targets, but they have not yet been verified in a Windows build/runtime in this work session. InputScope is not guaranteed to be present or correct in every control; an unavailable/failed scope remains Unknown and must not enable context reads. See [Windows integration status](windows-integration-status.md).
