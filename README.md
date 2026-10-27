@@ -29,9 +29,9 @@ By default, the probe reports focused-control metadata without reading surroundi
 
 ## Windows TSF feasibility probe
 
-A native C++ Text Services Framework (TSF) probe is available in `tools/PCWord.TsfProbe`. It is an experimental, read-only in-process text service. It observes TSF activation, document focus and edit notifications; it reports only status metadata, bounded character counts and caret-rectangle availability through the debugger output stream. It never prints text content or modifies text.
+A native C++ Text Services Framework (TSF) probe is available in `tools/PCWord.TsfProbe`. It is an experimental, read-only in-process text service. It observes TSF activation, document focus and edit notifications; it reports only status metadata, bounded character counts and caret-rectangle availability through the debugger output stream. It never prints text content or modifies text. Context reads require explicit opt-in and a positive safe scope; Password, PIN, and Private scopes are blocked.
 
-See `tools/PCWord.TsfProbe/README.md` for build, per-user registration, explicit synthetic-text opt-in, test steps and uninstall instructions. Do not register this prototype on a daily-use machine unless you are comfortable testing a native COM DLL. It is not a production input adapter or a system-wide suggestion UI.
+See `tools/PCWord.TsfProbe/README.md` for build, per-user registration, explicit synthetic-text opt-in, test steps and uninstall instructions. Do not register this prototype on a daily-use machine unless you are comfortable testing a native COM DLL. It is not a production input adapter or a system-wide suggestion UI. See `docs/windows-integration-status.md` for the researched API path, implementation boundary, and remaining verification gates. Windows CTest targets cover the fail-closed opt-in and sensitive-scope policies.
 
 ## Scope and limitations
 
