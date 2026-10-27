@@ -23,7 +23,7 @@ try
     var entries = DictionaryLoader.Load(dictionaryPath);
     var index = new PrefixIndex(entries);
     var ranker = new CandidateRanker(index);
-
+    
     Console.WriteLine($"Loaded {entries.Count} words.");
     Console.WriteLine("Enter a prefix to get suggestions.");
     Console.WriteLine("Type :quit to exit.");
