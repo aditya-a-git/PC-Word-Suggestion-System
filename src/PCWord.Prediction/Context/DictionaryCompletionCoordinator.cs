@@ -1,5 +1,7 @@
+using System.Diagnostics;
 using PCWord.Core.Input;
 using PCWord.Core.Suggestions;
+using PCWord.Prediction.Diagnostics;
 using PCWord.Prediction.Dictionary;
 using PCWord.Prediction.Ranking;
 
@@ -19,7 +21,8 @@ public sealed class CompletionUpdatedEventArgs(
 
 /// <summary>
 /// Connects versioned adapter snapshots to the existing local dictionary completion
-/// engine. It retains only the current bounded prediction context and candidates.
+/// engine. Prediction and delivery are synchronous; stale/equal versions are rejected
+/// before they can replace the current result. It retains only current bounded state.
 /// </summary>
 public sealed class DictionaryCompletionCoordinator : IDisposable
 {
@@ -27,6 +30,7 @@ public sealed class DictionaryCompletionCoordinator : IDisposable
     private readonly IInputAdapter _adapter;
     private readonly CandidateRanker _ranker;
     private readonly PredictionContextManager _contextManager;
+    private readonly CompletionMetrics _metrics;
     private bool _enabled = true;
     private bool _disposed;
     private IReadOnlyList<string> _currentCandidates = Array.Empty<string>();
@@ -34,7 +38,8 @@ public sealed class DictionaryCompletionCoordinator : IDisposable
     public DictionaryCompletionCoordinator(
         IInputAdapter adapter,
         CandidateRanker ranker,
-        PredictionContextManager? contextManager = null)
+        PredictionContextManager? contextManager = null,
+        CompletionMetrics? metrics = null)
     {
         ArgumentNullException.ThrowIfNull(adapter);
         ArgumentNullException.ThrowIfNull(ranker);
@@ -43,6 +48,7 @@ public sealed class DictionaryCompletionCoordinator : IDisposable
         _contextManager = contextManager ?? new PredictionContextManager(
             InputContextSnapshot.MaximumTextBeforeCaret,
             InputContextSnapshot.MaximumTextAfterCaret);
+        _metrics = metrics ?? new CompletionMetrics();
         _adapter.ContextChanged += AdapterOnContextChanged;
         _adapter.SetEnabled(true);
     }
@@ -50,6 +56,13 @@ public sealed class DictionaryCompletionCoordinator : IDisposable
     public event EventHandler<CompletionUpdatedEventArgs>? SuggestionsChanged;
 
     public PredictionContext CurrentContext => _contextManager.Current;
+
+    public bool IsEnabled => _enabled && !_disposed;
+
+    public bool IsCurrent(long contextVersion, string? fieldId) =>
+        !_disposed &&
+        _contextManager.Current.Version == contextVersion &&
+        StringComparer.Ordinal.Equals(_contextManager.Current.FieldId, fieldId);
 
     public void SetEnabled(bool enabled)
     {
@@ -59,13 +72,11 @@ public sealed class DictionaryCompletionCoordinator : IDisposable
 
         _enabled = enabled;
         _currentCandidates = Array.Empty<string>();
-        _adapter.SetCandidateSet(
-            _contextManager.Current.Version,
-            _contextManager.Current.FieldId,
-            _currentCandidates);
-        _adapter.SetEnabled(enabled);
+        PredictionContext current = _contextManager.Current;
+        _adapter.SetCandidateSet(current.Version, current.FieldId, _currentCandidates);
         if (!enabled)
-            PublishEmpty(_contextManager.Current.Version, _contextManager.Current.FieldId, null);
+            Deliver(current.Version, current.FieldId, _currentCandidates, null, null);
+        _adapter.SetEnabled(enabled);
     }
 
     public void Dismiss()
@@ -73,8 +84,7 @@ public sealed class DictionaryCompletionCoordinator : IDisposable
         ObjectDisposedException.ThrowIf(_disposed, this);
         PredictionContext current = _contextManager.Current;
         _currentCandidates = Array.Empty<string>();
-        _adapter.SetCandidateSet(current.Version, current.FieldId, _currentCandidates);
-        PublishEmpty(current.Version, current.FieldId, null);
+        Deliver(current.Version, current.FieldId, _currentCandidates, null, null);
     }
 
     public async ValueTask<TextEditResult> AcceptAsync(
@@ -97,7 +107,7 @@ public sealed class DictionaryCompletionCoordinator : IDisposable
             candidate);
 
         TextEditResult result = await _adapter.ApplyEditAsync(request, cancellationToken);
-        if (!result.WasApplied && _contextManager.Current.Version == current.Version)
+        if (!result.WasApplied && IsCurrent(current.Version, current.FieldId))
             Dismiss();
         return result;
     }
@@ -118,6 +128,10 @@ public sealed class DictionaryCompletionCoordinator : IDisposable
             return;
 
         InputContextSnapshot snapshot = args.Snapshot;
+        long startedAt = snapshot.CaptureStartedTimestamp > 0
+            ? snapshot.CaptureStartedTimestamp
+            : Stopwatch.GetTimestamp();
+
         try
         {
             if (!_contextManager.TryUpdate(snapshot))
@@ -126,39 +140,58 @@ public sealed class DictionaryCompletionCoordinator : IDisposable
         catch (ArgumentException)
         {
             _contextManager.Invalidate(snapshot.Version);
-            ClearAdapterCandidates(snapshot.Version, snapshot.FieldId);
-            PublishEmpty(snapshot.Version, snapshot.FieldId, null);
+            _currentCandidates = Array.Empty<string>();
+            Deliver(snapshot.Version, snapshot.FieldId, _currentCandidates, null, startedAt);
             return;
         }
 
-        if (!_enabled || !_contextManager.Current.CanPredictCompletion ||
-            _contextManager.Current.Prefix.Length < MinimumPrefixLength)
+        PredictionContext context = _contextManager.Current;
+        if (!_enabled || !context.CanPredictCompletion || context.Prefix.Length < MinimumPrefixLength)
         {
-            ClearAdapterCandidates(snapshot.Version, snapshot.FieldId);
-            PublishEmpty(snapshot.Version, snapshot.FieldId, snapshot.CaretBounds);
+            _currentCandidates = Array.Empty<string>();
+            Deliver(snapshot.Version, snapshot.FieldId, _currentCandidates, snapshot.CaretBounds, startedAt);
             return;
         }
 
-        IReadOnlyList<string> candidates = _ranker.GetSuggestions(
-                _contextManager.Current.Prefix,
-                SuggestionState.MaximumSuggestions)
-            .Select(entry => SuggestionFormatter.MatchPrefixCasing(
-                _contextManager.Current.Prefix, entry.Word))
-            .ToArray();
+        long lookupStartedAt = Stopwatch.GetTimestamp();
+        IReadOnlyList<string> candidates;
+        try
+        {
+            candidates = _ranker.GetSuggestions(context.Prefix, SuggestionState.MaximumSuggestions)
+                .Select(entry => SuggestionFormatter.MatchPrefixCasing(context.Prefix, entry.Word))
+                .ToArray();
+        }
+        finally
+        {
+            _metrics.Record(CompletionMetricStage.DictionaryLookupAndRanking,
+                Stopwatch.GetElapsedTime(lookupStartedAt));
+        }
 
         _currentCandidates = candidates;
-        _adapter.SetCandidateSet(snapshot.Version, snapshot.FieldId, candidates);
-        SuggestionsChanged?.Invoke(this, new CompletionUpdatedEventArgs(
-            snapshot.Version, snapshot.FieldId, candidates, snapshot.CaretBounds));
+        Deliver(snapshot.Version, snapshot.FieldId, candidates, snapshot.CaretBounds, startedAt);
     }
 
-    private void ClearAdapterCandidates(long version, string? fieldId)
+    private void Deliver(
+        long version,
+        string? fieldId,
+        IReadOnlyList<string> candidates,
+        CaretScreenBounds? caretBounds,
+        long? endToEndStartedAt)
     {
-        _currentCandidates = Array.Empty<string>();
-        _adapter.SetCandidateSet(version, fieldId, _currentCandidates);
+        long deliveryStartedAt = Stopwatch.GetTimestamp();
+        try
+        {
+            _adapter.SetCandidateSet(version, fieldId, candidates);
+            SuggestionsChanged?.Invoke(this,
+                new CompletionUpdatedEventArgs(version, fieldId, candidates, caretBounds));
+        }
+        finally
+        {
+            _metrics.Record(CompletionMetricStage.ResultDelivery,
+                Stopwatch.GetElapsedTime(deliveryStartedAt));
+            if (endToEndStartedAt is long startedAt)
+                _metrics.Record(CompletionMetricStage.EndToEndPrediction,
+                    Stopwatch.GetElapsedTime(startedAt));
+        }
     }
-
-    private void PublishEmpty(long version, string? fieldId, CaretScreenBounds? caretBounds) =>
-        SuggestionsChanged?.Invoke(this, new CompletionUpdatedEventArgs(
-            version, fieldId, Array.Empty<string>(), caretBounds));
 }

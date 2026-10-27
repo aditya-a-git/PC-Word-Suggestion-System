@@ -24,7 +24,8 @@ public sealed record InputContextSnapshot
         bool IsComposing = false,
         bool ContextAvailable = true,
         CaretScreenBounds? CaretBounds = null,
-        int? CaretOffset = null)
+        int? CaretOffset = null,
+        long CaptureStartedTimestamp = 0)
     {
         if (Version < 0)
             throw new ArgumentOutOfRangeException(nameof(Version));
@@ -38,6 +39,8 @@ public sealed record InputContextSnapshot
             throw new ArgumentOutOfRangeException(nameof(SelectionLength));
         if (CaretOffset < 0)
             throw new ArgumentOutOfRangeException(nameof(CaretOffset));
+        if (CaptureStartedTimestamp < 0)
+            throw new ArgumentOutOfRangeException(nameof(CaptureStartedTimestamp));
         if (!IsWellFormed(FieldId) || !IsWellFormed(TextBeforeCaret) || !IsWellFormed(TextAfterCaret))
             throw new ArgumentException("Snapshot strings must contain well-formed UTF-16.");
         if (CaretBounds is { } bounds &&
@@ -55,6 +58,7 @@ public sealed record InputContextSnapshot
         this.ContextAvailable = ContextAvailable;
         this.CaretBounds = CaretBounds;
         this.CaretOffset = CaretOffset;
+        this.CaptureStartedTimestamp = CaptureStartedTimestamp;
     }
 
     public long Version { get; init; }
@@ -68,6 +72,8 @@ public sealed record InputContextSnapshot
     public bool ContextAvailable { get; init; }
     public CaretScreenBounds? CaretBounds { get; init; }
     public int? CaretOffset { get; init; }
+    /// <summary>Monotonic Stopwatch timestamp captured before adapter context acquisition; zero when unavailable.</summary>
+    public long CaptureStartedTimestamp { get; init; }
 
     private static bool IsWellFormed(string? value)
     {

@@ -1,6 +1,8 @@
+using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Text;
 using PCWord.Core.Input;
+using PCWord.Prediction.Diagnostics;
 
 namespace PCWord.Stage0;
 
@@ -12,6 +14,7 @@ namespace PCWord.Stage0;
 internal sealed class ControlledEditorInputAdapter : IInputAdapter, IDisposable
 {
     private readonly RichTextBox _editor;
+    private readonly CompletionMetrics _metrics;
     private readonly Func<bool> _isSensitive;
     private readonly string _fieldId = $"pcword-editor-{Guid.NewGuid():N}";
     private readonly ImeMessageObserver _imeObserver;
@@ -25,12 +28,13 @@ internal sealed class ControlledEditorInputAdapter : IInputAdapter, IDisposable
     private bool _applyingEdit;
     private bool _disposed;
 
-    public ControlledEditorInputAdapter(RichTextBox editor, Func<bool> isSensitive)
+    public ControlledEditorInputAdapter(RichTextBox editor, Func<bool> isSensitive, CompletionMetrics? metrics = null)
     {
         ArgumentNullException.ThrowIfNull(editor);
         ArgumentNullException.ThrowIfNull(isSensitive);
         _editor = editor;
         _isSensitive = isSensitive;
+        _metrics = metrics ?? new CompletionMetrics();
         _imeObserver = new ImeMessageObserver(editor, OnCompositionChanged);
 
         _editor.TextChanged += EditorOnContextChanged;
@@ -149,7 +153,7 @@ internal sealed class ControlledEditorInputAdapter : IInputAdapter, IDisposable
             return new TextEditResult(TextEditStatus.Cancelled);
 
         InputContextSnapshot? previous = _latestSnapshot;
-        InputContextSnapshot current = CreateSnapshot(_version);
+        InputContextSnapshot current = CreateSnapshot(_version, Stopwatch.GetTimestamp());
         if (previous is null || !IsSameContext(previous, current))
         {
             PublishSnapshot();
@@ -226,14 +230,16 @@ internal sealed class ControlledEditorInputAdapter : IInputAdapter, IDisposable
         if (_version == long.MaxValue)
             throw new InvalidOperationException("The input context version is exhausted.");
 
+        long startedAt = Stopwatch.GetTimestamp();
         _version++;
-        _latestSnapshot = CreateSnapshot(_version);
+        _latestSnapshot = CreateSnapshot(_version, startedAt);
+        _metrics.Record(CompletionMetricStage.ContextAcquisition, Stopwatch.GetElapsedTime(startedAt));
         if (!_latestSnapshot.ContextAvailable)
             ClearCandidates();
         ContextChanged?.Invoke(this, new InputContextChangedEventArgs(_latestSnapshot));
     }
 
-    private InputContextSnapshot CreateSnapshot(long version)
+    private InputContextSnapshot CreateSnapshot(long version, long startedAt)
     {
         bool focused = !_editor.IsDisposed && _editor.Focused;
         bool sensitive = _isSensitive();
@@ -276,7 +282,8 @@ internal sealed class ControlledEditorInputAdapter : IInputAdapter, IDisposable
             composing,
             available,
             caretBounds,
-            caretOffset);
+            caretOffset,
+            startedAt);
     }
 
     private string ReadBoundedBefore(int caret)

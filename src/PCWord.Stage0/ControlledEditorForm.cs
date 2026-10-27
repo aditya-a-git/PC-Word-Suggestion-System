@@ -1,8 +1,10 @@
+using System.Diagnostics;
 using PCWord.Core;
 using PCWord.Core.Input;
 using PCWord.Prediction.Dictionary;
 using PCWord.Prediction.Context;
 using PCWord.Prediction.Ranking;
+using PCWord.Prediction.Diagnostics;
 
 namespace PCWord.Stage0;
 
@@ -15,7 +17,9 @@ internal sealed class ControlledEditorForm : Form
     private readonly TextBox replacement = new() { Width = 180, PlaceholderText = "Explicit replacement" };
     private readonly Button apply = new() { Text = "Apply explicit edit", AutoSize = true };
     private readonly Button sample = new() { Text = "Load sample text", AutoSize = true };
+    private readonly Button performance = new() { Text = "Performance stats", AutoSize = true };
     private readonly SuggestionPopupControl popup = new();
+    private readonly CompletionMetrics metrics = new();
     private readonly ControlledEditorInputAdapter inputAdapter;
     private readonly DictionaryCompletionCoordinator completionCoordinator;
     private IReadOnlyList<string> currentCandidates = Array.Empty<string>();
@@ -23,22 +27,22 @@ internal sealed class ControlledEditorForm : Form
 
     public ControlledEditorForm()
     {
-        CandidateRanker? loadedRanker = CreateRanker();
+        CandidateRanker? loadedRanker = CreateRanker(metrics);
         CandidateRanker ranker = loadedRanker ?? new CandidateRanker(new PrefixIndex(Array.Empty<DictionaryEntry>()));
-        inputAdapter = new ControlledEditorInputAdapter(editor, () => sensitive.Checked);
-        completionCoordinator = new DictionaryCompletionCoordinator(inputAdapter, ranker);
+        inputAdapter = new ControlledEditorInputAdapter(editor, () => sensitive.Checked, metrics);
+        completionCoordinator = new DictionaryCompletionCoordinator(inputAdapter, ranker, metrics: metrics);
         completionCoordinator.SuggestionsChanged += CompletionCoordinatorOnSuggestionsChanged;
 
         Text = "PCWord — Controlled Editor";
         MinimumSize = new Size(760, 520);
         var toolbar = new FlowLayoutPanel { Dock = DockStyle.Top, AutoSize = true, Padding = new Padding(8), WrapContents = true };
-        toolbar.Controls.Add(sample); toolbar.Controls.Add(enabled); toolbar.Controls.Add(sensitive); toolbar.Controls.Add(replacement); toolbar.Controls.Add(apply);
+        toolbar.Controls.Add(sample); toolbar.Controls.Add(performance); toolbar.Controls.Add(enabled); toolbar.Controls.Add(sensitive); toolbar.Controls.Add(replacement); toolbar.Controls.Add(apply);
         var editorHost = new Panel { Dock = DockStyle.Fill };
         editor.Dock = DockStyle.Fill;
         editorHost.Controls.Add(editor);
         editorHost.Controls.Add(popup);
 
-        var bottom = new Panel { Dock = DockStyle.Bottom, Height = 60, Padding = new Padding(8) }; bottom.Controls.Add(report);
+        var bottom = new Panel { Dock = DockStyle.Bottom, Height = 82, Padding = new Padding(8) }; bottom.Controls.Add(report);
         Controls.Add(editorHost); Controls.Add(bottom); Controls.Add(toolbar);
 
         editor.TextChanged += (_, _) => UpdateReport();
@@ -49,6 +53,7 @@ internal sealed class ControlledEditorForm : Form
         sensitive.CheckedChanged += (_, _) => { inputAdapter.Refresh(); UpdateReport(); };
         enabled.CheckedChanged += (_, _) => { completionCoordinator.SetEnabled(enabled.Checked); UpdateReport(); };
         apply.Click += (_, _) => ApplyEdit();
+        performance.Click += (_, _) => ShowPerformanceSummary();
         sample.Click += (_, _) =>
         {
             editor.Text = "Try typing 'pro' or 'pred' to see dictionary suggestions. This is a controlled-editor demo.";
@@ -86,46 +91,65 @@ internal sealed class ControlledEditorForm : Form
         await AcceptSuggestionAsync(index);
     }
 
-    private static CandidateRanker? CreateRanker()
+    private static CandidateRanker? CreateRanker(CompletionMetrics metrics)
     {
-        string dictionaryPath = Path.Combine(AppContext.BaseDirectory, "Dictionary", "sample.tsv");
+        long startedAt = Stopwatch.GetTimestamp();
         try
         {
+            string dictionaryPath = Path.Combine(AppContext.BaseDirectory, "Dictionary", "sample.tsv");
             return new CandidateRanker(new PrefixIndex(DictionaryLoader.Load(dictionaryPath)));
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidDataException)
         {
             return null;
         }
+        finally
+        {
+            metrics.Record(CompletionMetricStage.DictionaryStartup, Stopwatch.GetElapsedTime(startedAt));
+        }
     }
+
     private void CompletionCoordinatorOnSuggestionsChanged(object? sender, CompletionUpdatedEventArgs args)
     {
-        currentCandidates = args.Candidates;
-        if (args.Candidates.Count == 0 || !editor.Focused || args.CaretBounds is null)
+        long startedAt = Stopwatch.GetTimestamp();
+        try
         {
-            popup.Hide();
-            return;
-        }
+            if (!completionCoordinator.IsCurrent(args.ContextVersion, args.FieldId))
+                return;
 
-        Control? host = editor.Parent;
-        if (host is null)
-        {
-            popup.Hide();
-            return;
-        }
+            currentCandidates = args.Candidates;
+            if (!completionCoordinator.IsEnabled || args.Candidates.Count == 0 ||
+                !editor.Focused || args.CaretBounds is null)
+            {
+                popup.Hide();
+                return;
+            }
 
-        popup.Height = args.Candidates.Count * 25 + 6;
-        CaretScreenBounds caretBounds = args.CaretBounds.Value;
-        Point hostAnchor = host.PointToClient(new Point(caretBounds.Left, caretBounds.Bottom + 4));
-        int x = Math.Clamp(hostAnchor.X, 0, Math.Max(0, host.ClientSize.Width - popup.Width));
-        int y = hostAnchor.Y;
-        if (y + popup.Height > host.ClientSize.Height)
-        {
-            Point aboveCaret = host.PointToClient(new Point(caretBounds.Left, caretBounds.Top - popup.Height - 4));
-            y = aboveCaret.Y;
+            Control? host = editor.Parent;
+            if (host is null)
+            {
+                popup.Hide();
+                return;
+            }
+
+            popup.Height = args.Candidates.Count * 25 + 6;
+            CaretScreenBounds caretBounds = args.CaretBounds.Value;
+            Point hostAnchor = host.PointToClient(new Point(caretBounds.Left, caretBounds.Bottom + 4));
+            int x = Math.Clamp(hostAnchor.X, 0, Math.Max(0, host.ClientSize.Width - popup.Width));
+            int y = hostAnchor.Y;
+            if (y + popup.Height > host.ClientSize.Height)
+            {
+                Point aboveCaret = host.PointToClient(new Point(caretBounds.Left, caretBounds.Top - popup.Height - 4));
+                y = aboveCaret.Y;
+            }
+            y = Math.Clamp(y, 0, Math.Max(0, host.ClientSize.Height - popup.Height));
+            popup.ShowSuggestions(args.Candidates, new Point(x, y));
         }
-        y = Math.Clamp(y, 0, Math.Max(0, host.ClientSize.Height - popup.Height));
-        popup.ShowSuggestions(args.Candidates, new Point(x, y));
+        finally
+        {
+            metrics.Record(CompletionMetricStage.UiUpdate, Stopwatch.GetElapsedTime(startedAt));
+            UpdateReport();
+        }
     }
 
     private async Task AcceptSuggestionAsync(int index)
@@ -166,9 +190,21 @@ internal sealed class ControlledEditorForm : Form
                 : "no selection";
             bool eligible = snapshot is { ContextAvailable: true, HasFocus: true,
                 Sensitivity: InputFieldSensitivity.KnownSafe, SelectionLength: 0, IsComposing: false };
-            report.Text = $"Focus: {focus} | Caret: {caret} | {selected} | Eligible: {eligible} | Context: {(snapshot?.ContextAvailable == true ? "bounded" : "unavailable")}\nVersion: {snapshot?.Version.ToString() ?? "n/a"} | Suggestions enabled: {enabled.Checked} | Sensitive: {sensitive.Checked} | Composition: {snapshot?.IsComposing == true}\nCtrl+Space / Ctrl+1–3 accepts; Esc dismisses. This adapter and its child popup support only PCWord's owned editor; external application integration is disabled.";
+report.Text = $"Focus: {focus} | Caret: {caret} | {selected} | Eligible: {eligible} | Context: {(snapshot?.ContextAvailable == true ? "bounded" : "unavailable")}\nVersion: {snapshot?.Version.ToString() ?? "n/a"} | Suggestions enabled: {enabled.Checked} | Sensitive: {sensitive.Checked} | Composition: {snapshot?.IsComposing == true}\nCtrl+Space / Ctrl+1–3 accepts; Esc dismisses. Owned editor only; external application integration is disabled.";
         }
         finally { updating = false; }
+    }
+
+    private void ShowPerformanceSummary()
+    {
+        string details = string.Join(Environment.NewLine, metrics.GetSnapshot().Select(summary =>
+        {
+            string percentile = summary.MedianMilliseconds is double median && summary.P95Milliseconds is double p95
+                ? $"median {median:F3} ms, p95 {p95:F3} ms"
+                : "unavailable";
+            return $"{summary.Stage}: {percentile}; samples {summary.SampleCount} (window {summary.WindowSampleCount})";
+        }));
+        MessageBox.Show(this, details, "Aggregate performance timings", MessageBoxButtons.OK, MessageBoxIcon.Information);
     }
 
     private void ApplyEdit()

@@ -324,54 +324,52 @@ This stage is the baseline against which contextual prediction will be evaluated
 
 ---
 
-## Stage 5 — Next-Word Prediction
+
+### Stage 4 implementation record (2026-10-27)
+
+Stage 4 is implemented for the PCWord-owned WinForms editor: its bounded adapter feeds the existing dictionary ranker, current candidates are version/field bound, pause clears and stops context reads, and resume needs a new eligible snapshot. Empty/ineligible states clear the surface. No confidence score was invented; ranking remains frequency-based. The Release build passed with zero warnings/errors and 126 managed tests passed. Native policy CTest passed 2/2. A 100,000-iteration benchmark separately reports dictionary lookup and the synthetic managed end-to-end path in `docs/benchmarks.md`; its nine-entry dictionary and simulated UI do not establish live Windows UI latency or large-dictionary performance. A scoped source search found no network-client/logging/content-write APIs in the normal Core/Prediction/Stage0 path, but no runtime network capture was performed. Stage 4 is complete for the supported local editor code path. External Windows applications remain unsupported, and TSF remains diagnostic-only.
+
+---
+## Stage 5 — Lightweight Local N-Gram Next-Word Prediction
 
 ### Goal
 
-Add context-aware next-word suggestions while preserving the responsiveness, privacy and stability of dictionary completion.
+Add a small local next-word predictor after an eligible word boundary, evaluated on a fixed held-out public corpus and integrated through the existing controlled-editor coordinator. Stage 5 must not depend on TSF, cross-process access, a keyboard hook, network services, or private user text.
 
-### Tasks
+### Implementation plan
 
-1. Define when next-word prediction is eligible—for example, after a word boundary—and how it differs from partial-word completion.
-2. Implement a lightweight n-gram baseline.
-3. Create or select an appropriate held-out evaluation dataset. Do not use private user documents without explicit permission and privacy review.
-4. Measure top-1 and top-3 prediction quality, initialization time, per-prediction latency, memory and CPU use.
-5. Evaluate a compact neural language model only if the n-gram baseline leaves a meaningful quality gap.
-6. If evaluating a model, compare local inference options such as ONNX Runtime or Windows ML based on measured quality, latency, memory, packaging complexity, hardware support and licensing.
-7. Keep inference local and normal prediction independent of network connectivity.
-8. Combine dictionary and contextual evidence through a ranking layer; deduplicate and cap output at three.
-9. Add cancellation and freshness checks so slower inference cannot display stale suggestions.
-10. Choose the simplest model that meets the measured quality and performance targets.
+1. Define a next-word request as the bounded preceding context plus the current snapshot version/field ID. Eligible requests occur only at a word boundary with an empty selection, focus, known-safe sensitivity, no active composition, and enabled suggestions. Partial-word completion remains the existing dictionary path.
+2. Use the public Salesforce WikiText dataset, `wikitext-2-raw-v1`, as the initial fixed evaluation corpus. Pin the dataset repository revision and file checksums when implementation begins. Use train only for n-gram counts, validation only for choosing n-gram order/smoothing, and test once for final results. Reset n-gram history at document/line boundaries as defined in the preprocessing script. Check the source's current license and attribution obligations before copying data into the repository; retain provenance and preprocessing metadata. Do not use private documents. See the [Salesforce dataset card](https://huggingface.co/datasets/Salesforce/wikitext) and [WikiText paper](https://arxiv.org/abs/1609.07843).
+3. Implement a deterministic local unigram baseline, then a bounded bigram/trigram backoff model with documented smoothing, casing, punctuation, unknown-token and OOV behavior. Keep the initial vocabulary/model size bounded. Do not add a neural model in this stage.
+4. Define evaluation at one word-token target per eligible boundary. Report exact-match top-1 and top-3 accuracy, eligible example count, OOV/coverage rate, and results by split. Specify tokenization and normalization before running; never tune on test results.
+5. Add a repeatable offline evaluation command that prints aggregate metrics only and includes dataset revision, tokenizer/config, vocabulary size and model size. The checked-in evaluation should never emit corpus sentences or user input.
+6. Measure model build/load time, lookup median/p95, full controlled-editor request median/p95, CPU time, and managed/working-set memory. Keep dictionary-only and end-to-end results separate. Use the existing fixed-size aggregate instrumentation, adding only numeric Stage 5 metrics if needed.
+7. Integrate next-word output through the existing `DictionaryCompletionCoordinator`, preserving candidate deduplication and the three-result cap. Prefer next-word candidates only after a boundary; do not change partial-word completion semantics without tests.
+8. Test eligibility, sentence resets, backoff, OOV behavior, train/validation/test separation, empty results, pause/resume, sensitive/unknown/unavailable suppression, rapid context changes, stale-result rejection, and no network dependency.
+9. Consider a neural model only in a later measured experiment if the n-gram baseline leaves a material quality gap. Any such experiment needs a separate license, model-size, CPU/memory, latency and offline review.
 
-### Likely files to add or modify
+### Likely files
 
-- `prediction/context/` — next-word eligibility and context preparation
-- `prediction/inference/` — n-gram baseline and optional local-model adapter
-- `prediction/ranking/` — combined ranking
-- `models/README.md`
-- `data/README.md`
-- `tests/unit/` — ranking and model-interface tests
-- `tests/integration/` — end-to-end contextual prediction
-- `tools/evaluation/` — top-1/top-3 and latency evaluation
-- `docs/benchmarks.md`
-
-### Expected output
-
-A measured next-word prediction implementation, beginning with an n-gram baseline, plus a report explaining whether a compact neural model provides enough improvement to justify its costs.
+- `src/PCWord.Prediction/Inference/` — local n-gram model and request/result contract
+- `tools/PCWord.Evaluation/` — reproducible training/evaluation command
+- `data/README.md` and a small manifest — source, pinned revision, license and checksums; do not add the corpus until redistribution terms are approved
+- `tests/PCWord.Tests/` — n-gram, eligibility, freshness, split and privacy regressions
+- `docs/benchmarks.md` — dataset metrics and performance results
 
 ### Exit criteria
 
-- Evaluation reports top-1/top-3 quality and performance measurements.
-- Contextual prediction improves on the baseline by a documented, meaningful amount without unacceptable latency or resource use.
-- Normal prediction remains offline.
-- Stale results are cancelled or discarded.
-- Model and dataset licenses/provenance are documented.
+- Top-1/top-3, OOV/coverage, sample counts, and all performance measurements are reported on the fixed test split with train/validation/test boundaries enforced.
+- The n-gram model is compared with the unigram baseline and any quality gain is stated with its latency, memory and CPU cost.
+- The predictor runs offline and never sends or logs input/corpus text.
+- Stale results cannot replace a newer version or field; disabled, sensitive, composing, selected, unknown, or unavailable contexts produce no candidates.
+- Dataset/model provenance and redistribution obligations are documented. If terms do not permit bundling, the evaluation workflow documents user-supplied local dataset setup without committing corpus text.
 
-### Dependencies and risks
+### Status
 
-Depends on a reliable end-to-end dictionary baseline. Model size, startup cost, inference latency, licensing and dataset representativeness may outweigh a small accuracy improvement.
+This is an implementation plan only. Stage 5 code, dataset import, and evaluation have not been delivered; Stage 5 is not complete.
 
 ---
+
 
 ## Stage 6 — Compatibility Expansion
 

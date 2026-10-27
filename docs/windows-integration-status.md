@@ -1,32 +1,31 @@
-# Windows integration implementation status
+# Windows integration status
 
-## Implemented
+## Stage 4: controlled-editor dictionary completion
 
-- The PCWord-owned WinForms `RichTextBox` has a concrete `IInputAdapter`. It reads at most 128 UTF-16 units before and 32 after the caret through bounded RichEdit range requests, publishes a per-control field ID and increasing context versions, and reports focus, selection, composition, sensitivity, caret offset, and screen bounds where available.
-- The adapter suppresses collection unless enabled, focused, unselected, not composing, and not marked sensitive. It does not install a keyboard hook, retain a document copy, log text, or send context over a process boundary.
-- `DictionaryCompletionCoordinator` routes eligible snapshots through the existing context manager, dictionary ranker, and casing formatter; it caps results at the existing three-candidate limit and rejects stale acceptance through version, field, candidate-provenance, and context checks.
-- Explicit completion in the owned editor replaces only the expected current prefix, then verifies the resulting bounded text and caret. This adapter does not edit other applications.
-- TSF diagnostics now identify failed COM/TSF methods and HRESULTs and retain fail-closed scope classification. The SDK portability failure in earlier CI runs was fixed in `fa7ba0b`.
+Implemented for PCWord's own WinForms `RichTextBox`:
+
+- Bounded in-process adapter snapshots feed the existing context manager and local frequency-ranked dictionary. Each result carries its source context version and field identity; stale/equal snapshots are ignored and the UI checks both values before display.
+- The adapter reads no more than 128 UTF-16 units before and 32 after the caret. It suppresses text reads for disabled, unfocused, selected, composing, sensitive, or unavailable states. Explicit acceptance revalidates current context and candidate provenance, edits only the intended prefix, then verifies text and caret.
+- Empty results clear existing candidates. No confidence score was invented; the existing frequency ranking, two-character prefix minimum, and three-candidate cap remain the policy.
+- Pause clears candidates and turns off bounded text acquisition and acceptance. Resume requests a new adapter snapshot; the previous candidate set is not restored.
+- Numeric-only aggregate timings cover dictionary startup, context acquisition, lookup/ranking, result delivery, UI update, and end-to-end delivery. Rings are fixed at 2,048 values per stage. The benchmark command and actual measurements are in `docs/benchmarks.md`.
+
+The Release solution build succeeded with zero warnings/errors; 126 managed tests passed. Native policy CTest passed 2/2. The measured benchmark used the bundled nine-entry sample dictionary and a synthetic consumer. It is not representative of a production vocabulary or actual WinForms painting. Live UI timing was not collected in this run; use the app's **Performance stats** view during a controlled-editor session to collect those values.
 
 ## Not implemented or not established
 
-- There is no production cross-process TSF-to-.NET adapter or IPC boundary.
-- There is no TSF authorized write edit session or external-app acceptance operation. The current TSF component remains a diagnostic feasibility probe.
-- There is no system-wide popup. The existing child suggestion panel is confined to PCWord's own window and caret coordinates.
-- The owned-editor code has compiled and passed automated tests, but its live Windows UI behavior has not been manually verified in this task. No foreign application is claimed compatible.
-- UI Automation TextPattern remains read-only and provider-dependent. It is not used as an automatic editing fallback.
-- `ITfContext::GetAppProperty(GUID_PROP_INPUTSCOPE, ...)` is the documented property acquisition route. `ITfReadOnlyProperty::GetValue` may return `S_FALSE` for unsupported properties; the observed `E_FAIL` is unspecified. No demonstrated API misuse explains the recorded failure, so it remains unresolved and Unknown/denied.
+- No production cross-process TSF-to-.NET adapter or IPC boundary.
+- No authorized TSF write edit session, external-app acceptance, or system-wide popup.
+- No production UI Automation adapter; its TextPattern probe is read-only and provider-dependent.
+- No foreign application is supported by this integration. Notepad, browsers, Office, VS Code, terminals, elevated applications, remote sessions and custom controls remain unsupported/untested.
+- The observed `ITfReadOnlyProperty::GetValue(GUID_PROP_INPUTSCOPE)` `E_FAIL` remains unresolved. The documented property path and method-level diagnostics are in the TSF feasibility notes. Any missing, failed, malformed, or unknown safety metadata remains denied.
 
-## Privacy and fallback
+## Offline and privacy status
 
-Only the controlled editor can supply context to the completion pipeline. Unknown, unavailable, sensitive, selected, unfocused, disabled, or composing contexts produce no candidates and cannot be accepted. Candidate and context data are transient and bounded. No raw key events or typed text are logged or persisted. Other applications are left untouched.
+The normal path reads the bundled dictionary locally and has no network client. A scoped source search found no network-client, text logging, or content-write API matches in `PCWord.Core`, `PCWord.Prediction`, or `PCWord.Stage0`. This was source inspection, not a runtime network capture. Input text, prefixes, candidates, and field identifiers are not included in metrics or logs; details are in `docs/privacy-model.md`.
 
-## Verification
+## Stage 4 status and next stage
 
-The latest GitHub Actions runs for `fa7ba0b` and `c36e077` succeeded. Earlier failures in runs 77–82 came from SDK-dependent InputScope identifiers in the native policy header; the portability fix was committed in `fa7ba0b`. Current local managed results and Windows manual checks are recorded in `docs/testing-guide.md`.
+Stage 4 is complete for the existing controlled-editor path and its synthetic performance baseline. This does not complete TSF integration or claim arbitrary Windows application compatibility. Stage 5 may proceed independently using the local coordinator; its concrete n-gram and held-out evaluation plan is in `plan.md` and `docs/benchmarks.md`. No Stage 5 code or evaluation has been delivered.
 
-On Windows, run the synthetic-text manual procedure in the testing guide. The TSF failure reproduction and application compatibility matrix remain unverified until those manual runs are recorded.
-
-## Stage 4 gate
-
-Stage 4 remains gated. A controlled-editor dictionary path is implemented, but interactive correctness has not been demonstrated in this run, and no tested production integration for external apps exists. Do not infer system-wide support or treat compilation as satisfying the integration gate.
+The current dictionary ranker runs synchronously over the local in-memory index, so there is no cooperative cancellation point and no concurrent prediction response can overtake a later UI input event. The coordinator still rejects stale/equal snapshot versions, binds delivery to field identity, and the form rechecks both before rendering. If future inference becomes asynchronous or materially slower, add cancellation but retain these version/field checks at result delivery and acceptance.
