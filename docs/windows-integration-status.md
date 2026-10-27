@@ -20,6 +20,16 @@ The Release solution build succeeded with zero warnings/errors; 126 managed test
 - No foreign application is supported by this integration. Notepad, browsers, Office, VS Code, terminals, elevated applications, remote sessions and custom controls remain unsupported/untested.
 - The observed `ITfReadOnlyProperty::GetValue(GUID_PROP_INPUTSCOPE)` `E_FAIL` remains unresolved. The documented property path and method-level diagnostics are in the TSF feasibility notes. Any missing, failed, malformed, or unknown safety metadata remains denied.
 
+## Production integration gate (2026-10-27)
+
+The requested production Windows integration was audited against current `main`. No production IPC, TSF-authorized write operation, external popup, or real host/control test harness exists in this revision. The TSF DLL remains a feasibility probe and must not be described as an adapter.
+
+The `GetAppProperty(GUID_PROP_INPUTSCOPE)` then `ITfReadOnlyProperty::GetValue` sequence follows Microsoft's documented `ITfInputScope` example. The current source cannot determine from the observed `E_FAIL` alone whether the property is unsupported by that context owner or failed for another host-specific reason. Microsoft describes InputScope as text-input guidance; it is not a general proof that arbitrary field contents are non-sensitive. Accordingly, a failed, unavailable, or unrecognized property remains denied, and UI Automation must not be used as an automatic fallback.
+
+The native DLL and policy tests build on the current Windows x64 toolchain; this verifies compilation and pure policy behavior only. No TSF profile was registered or activated, and no external application was tested in this run. The single targeted runtime step required to investigate the host-specific failure is: on a disposable Windows account, register the x64 diagnostic DLL per `docs/tsf-feasibility.md`, activate it in a standard text control containing synthetic text, and capture only operation names/HRESULTs from a debugger output viewer. Do not enable bounded context reads for this diagnostic step. This may clarify the failing host/API operation but cannot establish sensitivity safety or production support.
+
+Production external prediction remains blocked until a supported safety signal and opt-in policy are established, then the native-to-managed request/response path, TSF edit-session acceptance, non-activating popup, and supported-host runtime tests are implemented and verified. No external application is currently supported.
+
 ## Offline and privacy status
 
 The normal path reads the bundled dictionary locally and has no network client. A scoped source search found no network-client, text logging, or content-write API matches in `PCWord.Core`, `PCWord.Prediction`, or `PCWord.Stage0`. This was source inspection, not a runtime network capture. Input text, prefixes, candidates, and field identifiers are not included in metrics or logs; details are in `docs/privacy-model.md`.

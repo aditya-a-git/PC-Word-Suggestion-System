@@ -10,7 +10,7 @@ dotnet build .\PCWord.sln --configuration Release --no-restore
 dotnet test .\PCWord.sln --configuration Release --no-restore --verbosity minimal
 ```
 
-The Stage 4 run on 2026-10-27 passed with zero build warnings/errors and 126/126 managed tests passing. The new cases cover rapid consecutive versions/fields, focus and field invalidation, disable/re-enable freshness, sensitive/unavailable contexts, empty-result clearing, obsolete candidate rejection, and metrics with no text-shaped API/storage.
+On 2026-10-27, `dotnet build PCWord.sln -c Release` passed with zero warnings/errors, and `dotnet test PCWord.sln -c Release --no-build` passed 126/126 managed tests. Existing cases cover rapid consecutive versions/fields, focus and field invalidation, disable/re-enable freshness, sensitive/unavailable contexts, empty-result clearing, obsolete candidate rejection, and metrics with no text-shaped API/storage. These are controlled-editor contracts, not external-app integration tests.
 
 ## Repeatable benchmark
 
@@ -30,7 +30,7 @@ cmake --build .\tools\PCWord.TsfProbe\build-validation --config Release
 ctest --test-dir .\tools\PCWord.TsfProbe\build-validation -C Release --output-on-failure
 ```
 
-The native test run passed both CTest policy executables. They do not activate TSF or prove provider behavior.
+On 2026-10-27, CMake configured and built `PCWordTsfProbe.dll` with Visual Studio 18 / MSVC 19.51 and Windows SDK 10.0.26100; CTest passed 2/2 policy executables. They do not activate TSF or prove provider behavior. No TSF profile was registered or activated in that run.
 
 ## Runtime status and privacy inspection
 

@@ -27,6 +27,8 @@ The benchmark reports dictionary lookup separately from the synthetic managed en
 
 `tools/PCWord.WindowsProbe` is read-only UI Automation feasibility code. `tools/PCWord.TsfProbe` is a native TSF diagnostic probe with fail-closed input-scope policy. Neither is a production adapter. TSF `GetValue(GUID_PROP_INPUTSCOPE)` failure remains unresolved and unknown fields remain denied.
 
+The current Windows build verifies native compilation and the two input-scope/safety policy test executables only. The TSF profile was not registered or activated in the latest run, and no external app was tested. Production cross-process prediction, authorized TSF edits, and a system popup are not implemented; external apps remain unsupported. See `docs/windows-integration-status.md` for the precise gate and the single targeted runtime diagnostic step.
+
 ## Scope and limitations
 
 - The production code path implemented here is limited to PCWord's own editor. It is not an adapter for other applications.

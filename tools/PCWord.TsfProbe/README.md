@@ -40,7 +40,7 @@ Confirm the DLL path before either command. Registration/unregistration must use
 
 The DLL reports activation, focus/edit notifications, selection availability, caret rectangle availability, and bounded character counts to debugger output. It never prints text content or edits documents. Context reads are disabled by default and require `PCWORD_TSF_ALLOW_CONTEXT_READ=1` in the target application's environment. Use only synthetic text. Unknown, password, PIN, and Private input scopes must fail closed. The Windows input-scope classifier is covered by the CTest target InputScopePolicyTests; the opt-in gate is covered by InputSafetyPolicyTests.
 
-This is a feasibility spike only: no key interception, popup, prediction, or text replacement. Follow the Windows TSF test matrix in `docs/tsf-feasibility.md`. Runtime validation is still pending.
+This is a feasibility spike only: no key interception, popup, prediction, IPC, or text replacement. Building the DLL and policy tests does not verify that a host activates the service or exposes its context. `GetAppProperty`/`GetValue` failures remain unavailable context; InputScope is advisory metadata and is not proof that text is non-sensitive. Follow the Windows TSF test matrix in `docs/tsf-feasibility.md`. Runtime validation is still pending.
 
 
 See [Windows integration status](../../docs/windows-integration-status.md) for the implementation boundary, Microsoft API references, and remaining verification gates. The native probe remains a feasibility tool; it is not yet a production system-wide adapter.
