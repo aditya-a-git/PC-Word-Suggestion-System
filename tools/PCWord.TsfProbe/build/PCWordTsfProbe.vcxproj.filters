@@ -9,6 +9,11 @@
     <CustomBuild Include="C:\Users\adity\OneDrive\coding\PC Suggest\tools\PCWord.TsfProbe\CMakeLists.txt" />
   </ItemGroup>
   <ItemGroup>
+    <None Include="C:\Users\adity\OneDrive\coding\PC Suggest\tools\PCWord.TsfProbe\PCWordTsfProbe.def">
+      <Filter>Source Files</Filter>
+    </None>
+  </ItemGroup>
+  <ItemGroup>
     <Filter Include="Source Files">
       <UniqueIdentifier>{E133CB59-D272-3631-8872-6EDD1979ED8D}</UniqueIdentifier>
     </Filter>
