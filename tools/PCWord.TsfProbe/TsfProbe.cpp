@@ -2,6 +2,7 @@
 #include <msctf.h>
 #include <inputscope.h>
 #include <oleauto.h>
+#include "InputSafetyPolicy.h"
 #include <atomic>
 #include <algorithm>
 #include <iterator>
@@ -356,8 +357,10 @@ public:
             return S_OK;
         }
 
-        const int inputScopeStatus = GetInputScopeStatus(context, cookie, selection.range);
-        const bool allowRead = IsContextReadOptedIn() && inputScopeStatus == 0;
+        const pcword::tsf::InputScopeStatus inputScopeStatus =
+            GetInputScopeStatus(context, cookie, selection.range);
+        const bool optedIn = IsContextReadOptedIn();
+        const bool allowRead = pcword::tsf::CanReadContext(optedIn, inputScopeStatus);
         LONG beforeCount = -1, afterCount = -1;
         RECT caretRect{};
         bool caretRectAvailable = false;
@@ -375,12 +378,14 @@ public:
             ReadBoundedLengths(cookie, selection.range, &beforeCount, &afterCount);
 
         wchar_t summary[256]{};
-        const wchar_t* scopeLabel = inputScopeStatus == 1 ? L"password" :
-            (inputScopeStatus == 0 ? L"non-password" : L"unknown");
+        const wchar_t* scopeLabel =
+            inputScopeStatus == pcword::tsf::InputScopeStatus::Sensitive ? L"password" :
+            (inputScopeStatus == pcword::tsf::InputScopeStatus::NonSensitive
+                ? L"non-password" : L"unknown");
         swprintf_s(summary, L"Edit event: input-scope=%s opt-in=%s selection=collapsed "
             L"context-read=%s before=%ld after=%ld caret-rect=%s rect=(%ld,%ld,%ld,%ld)",
             scopeLabel,
-            IsContextReadOptedIn() ? L"yes" : L"no",
+            optedIn ? L"yes" : L"no",
             allowRead ? L"attempted" : L"skipped",
             beforeCount, afterCount, caretRectAvailable ? L"yes" : L"no",
             caretRect.left, caretRect.top, caretRect.right, caretRect.bottom);
@@ -448,10 +453,10 @@ private:
         return length == 1 && value[0] == L'1';
     }
 
-    // Return 1 for password, 0 only for a positively observed non-password scope,
-    // and -1 if scope metadata is unavailable. Context reads fail closed for -1.
-    static int GetInputScopeStatus(ITfContext* context, TfEditCookie cookie,
-        ITfRange* range)
+    // Return a positive safe classification only when metadata is available and
+    // reports at least one scope. All failures and ambiguous results are Unknown.
+    static pcword::tsf::InputScopeStatus GetInputScopeStatus(
+        ITfContext* context, TfEditCookie cookie, ITfRange* range)
     {
         // GUID_PROP_INPUTSCOPE is a TSF text-range property. GetAppProperty()
         // retrieves application properties and can leave the scope unknown.
@@ -461,7 +466,7 @@ private:
         {
             TraceHr(L"ITfContext::GetAppProperty(GUID_PROP_INPUTSCOPE)", hr);
             if (property) property->Release();
-            return -1;
+            return pcword::tsf::InputScopeStatus::Unknown;
         }
 
         VARIANT value;
@@ -480,7 +485,7 @@ private:
             static_cast<unsigned int>(value.vt));
         Trace(message);
 
-        int scopeStatus = -1;
+        pcword::tsf::InputScopeStatus scopeStatus = pcword::tsf::InputScopeStatus::Unknown;
         if (value.vt == VT_UNKNOWN && value.punkVal)
         {
             ITfInputScope* inputScope = nullptr;
@@ -510,12 +515,12 @@ private:
                     // was positively reported and none is IS_PASSWORD.
                     if (count > 0 && scopes)
                     {
-                        scopeStatus = 0;
+                        scopeStatus = pcword::tsf::InputScopeStatus::NonSensitive;
                         for (UINT i = 0; i < count; ++i)
                         {
                             if (scopes[i] == IS_PASSWORD)
                             {
-                                scopeStatus = 1;
+                                scopeStatus = pcword::tsf::InputScopeStatus::Sensitive;
                                 break;
                             }
                         }
