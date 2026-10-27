@@ -3,6 +3,7 @@
 #include <inputscope.h>
 #include <oleauto.h>
 #include "InputSafetyPolicy.h"
+#include "InputScopePolicy.h"
 #include <atomic>
 #include <algorithm>
 #include <iterator>
@@ -453,24 +454,6 @@ private:
         return length == 1 && value[0] == L'1';
     }
 
-    // InputScope values are hints, not a universal sensitivity guarantee.
-    // Treat explicitly private, password, and PIN scopes as sensitive.
-    static bool IsSensitiveInputScope(InputScope scope) noexcept
-    {
-        switch (scope)
-        {
-        case IS_PASSWORD:
-        case IS_NUMERICPIN:
-        case IS_ALPHANUMERICPIN:
-        case IS_NUMERICPASSWORD:
-        case IS_ALPHANUMERICPASSWORD:
-        case IS_PRIVATE:
-            return true;
-        default:
-            return false;
-        }
-    }
-
     // Return a positive safe classification only when metadata is available and
     // reports at least one scope. All failures and ambiguous results are Unknown.
     static pcword::tsf::InputScopeStatus GetInputScopeStatus(
@@ -537,7 +520,7 @@ private:
                         scopeStatus = pcword::tsf::InputScopeStatus::NonSensitive;
                         for (UINT i = 0; i < count; ++i)
                         {
-                            if (IsSensitiveInputScope(scopes[i]))
+                            if (pcword::tsf::IsSensitiveInputScope(scopes[i]))
                             {
                                 scopeStatus = pcword::tsf::InputScopeStatus::Sensitive;
                                 break;
