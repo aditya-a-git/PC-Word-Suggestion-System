@@ -455,11 +455,11 @@ private:
     {
         // GUID_PROP_INPUTSCOPE is a TSF text-range property. GetAppProperty()
         // retrieves application properties and can leave the scope unknown.
-        ITfProperty* property = nullptr;
-        HRESULT hr = context->GetProperty(PCWORD_GUID_PROP_INPUTSCOPE, &property);
+        ITfReadOnlyProperty* property = nullptr;
+        HRESULT hr = context->GetAppProperty(PCWORD_GUID_PROP_INPUTSCOPE, &property);
         if (FAILED(hr) || !property)
         {
-            TraceHr(L"ITfContext::GetProperty(GUID_PROP_INPUTSCOPE)", hr);
+            TraceHr(L"ITfContext::GetAppProperty(GUID_PROP_INPUTSCOPE)", hr);
             if (property) property->Release();
             return -1;
         }
