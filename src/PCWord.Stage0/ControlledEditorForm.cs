@@ -1,18 +1,14 @@
 using PCWord.Core;
+using PCWord.Core.Input;
 using PCWord.Core.Suggestions;
+using PCWord.Prediction.Dictionary;
+using PCWord.Prediction.Ranking;
 
 namespace PCWord.Stage0;
 
 internal sealed class ControlledEditorForm : Form
 {
-    private static readonly string[] DemoWords =
-    {
-        "program", "programmer", "programming", "progress", "project", "projection",
-        "process", "processor", "professional", "provide", "prediction", "predictive",
-        "hello", "help", "helpful", "world", "wonderful", "there", "their", "these",
-        "computer", "context", "complete", "completion", "suggestion", "system"
-    };
-
+    private readonly CandidateRanker? ranker = CreateRanker();
     private const string FieldId = "controlled-editor";
     private readonly TextBox editor = new() { Multiline = true, AcceptsReturn = true, ScrollBars = ScrollBars.Vertical, Dock = DockStyle.Fill, Font = new Font("Consolas", 12) };
     private readonly CheckBox sensitive = new() { Text = "Treat this field as sensitive (context disabled)", AutoSize = true };
@@ -55,7 +51,7 @@ internal sealed class ControlledEditorForm : Form
         apply.Click += (_, _) => ApplyEdit();
         sample.Click += (_, _) =>
         {
-            editor.Text = "Try typing 'progr' or 'comp' to see the Stage 3 popup. This is a controlled-editor demo.";
+            editor.Text = "Try typing 'pro' or 'pred' to see dictionary suggestions. This is a controlled-editor demo.";
             editor.SelectionStart = editor.Text.IndexOf("progr", StringComparison.Ordinal);
             editor.SelectionLength = 0;
             editor.Focus();
@@ -114,6 +110,18 @@ internal sealed class ControlledEditorForm : Form
         }
     }
 
+    private static CandidateRanker? CreateRanker()
+    {
+        string dictionaryPath = Path.Combine(AppContext.BaseDirectory, "Dictionary", "sample.tsv");
+        try
+        {
+            return new CandidateRanker(new PrefixIndex(DictionaryLoader.Load(dictionaryPath)));
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidDataException)
+        {
+            return null;
+        }
+    }
     private string CurrentContextKey() =>
         $"{editor.Text}\u001f{editor.SelectionStart}\u001f{editor.SelectionLength}\u001f{sensitive.Checked}";
 
@@ -128,11 +136,10 @@ internal sealed class ControlledEditorForm : Form
 
         long version = ++contextVersion;
         string prefix = context.TypedPrefix;
-        string[] candidates = context.IsEligible && prefix.Length >= 2 &&
+        string[] candidates = context.IsEligible && prefix.Length >= 2 && ranker is not null &&
                               !StringComparer.Ordinal.Equals(CurrentContextKey(), dismissedContextKey)
-            ? DemoWords.Where(word => word.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
-                .Distinct(StringComparer.OrdinalIgnoreCase)
-                .Take(SuggestionState.MaximumSuggestions)
+            ? ranker.GetSuggestions(prefix, SuggestionState.MaximumSuggestions)
+                .Select(entry => SuggestionFormatter.MatchPrefixCasing(prefix, entry.Word))
                 .ToArray()
             : Array.Empty<string>();
 
@@ -186,6 +193,24 @@ internal sealed class ControlledEditorForm : Form
             var context = TextContext.Capture(
                 editor.Text, editor.SelectionStart, editor.SelectionLength,
                 editor.Focused, sensitive.Checked);
+            var snapshot = new InputContextSnapshot(
+                suggestionVersion,
+                FieldId,
+                editor.Text[..editor.SelectionStart],
+                editor.Text[editor.SelectionStart..],
+                editor.SelectionLength,
+                editor.Focused,
+                sensitive.Checked ? InputFieldSensitivity.Sensitive : InputFieldSensitivity.KnownSafe);
+            var request = new TextEditRequest(
+                suggestionVersion, FieldId, context.TypedPrefix, candidate);
+            var validation = TextEditValidator.Validate(
+                snapshot, request, contextVersion, suggestionState.Suggestions);
+            if (!validation.IsValid)
+            {
+                popup.Hide();
+                DismissSuggestions();
+                return false;
+            }
             var result = context.ApplyExplicitEdit(candidate);
 
             applyingSuggestion = true;
@@ -235,7 +260,7 @@ internal sealed class ControlledEditorForm : Form
         {
             var context = TextContext.Capture(editor.Text, editor.SelectionStart, editor.SelectionLength, editor.Focused, sensitive.Checked);
             string selected = context.HasSelection ? $"{context.SelectionLength} UTF-16 units selected" : "no selection";
-            report.Text = $"Focus: {(context.HasFocus ? "editor" : "none")} | Caret: {context.Caret} | {selected} | Eligible: {context.IsEligible}\nCurrent word: {(context.IsSensitive ? "[disabled for sensitive field]" : context.CurrentWord)} | Previous context: {(context.IsSensitive ? "[disabled]" : context.PrecedingContext())}\nStage 3 demo: Ctrl+Space / Ctrl+1–3 accepts; Esc dismisses. Suggestions are sample-only until Stage 4. Popup requires a two-character prefix.";
+            report.Text = $"Focus: {(context.HasFocus ? "editor" : "none")} | Caret: {context.Caret} | {selected} | Eligible: {context.IsEligible}\nCurrent word: {(context.IsSensitive ? "[disabled for sensitive field]" : context.CurrentWord)} | Previous context: {(context.IsSensitive ? "[disabled]" : context.PrecedingContext())}\nStage 3 demo: Ctrl+Space / Ctrl+1–3 accepts; Esc dismisses. The local popup uses the bundled offline dictionary. Cross-application input remains unsupported.";
         }
         finally { updating = false; }
     }

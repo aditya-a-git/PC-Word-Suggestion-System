@@ -1,38 +1,26 @@
-# PCWord manual verification guide
+# Testing guide
 
-## Build and launch
+## Managed tests
 
-    dotnet restore .\PCWord.sln
-    dotnet test .\PCWord.sln --configuration Release
-    dotnet run --project .\src\PCWord.Stage0\PCWord.Stage0.csproj
+```powershell
+dotnet build .\PCWord.sln --configuration Release
+dotnet test .\PCWord.sln --configuration Release
+```
 
-## Stage 0 controlled-editor checks
+Core tests cover context parsing, prediction limits/staleness, and explicit-edit validation. Run UI behavior manually in the controlled editor with synthetic text. Confirm the popup remains in the owned window, retains editor focus, accepts only a current candidate, rejects sensitive/selected/mid-word contexts, and produces the exact expected text and caret.
 
-1. Put the caret at the start, middle, and end of a word. Confirm the current word and caret offset are reported correctly.
-2. Select text and test Replace; verify the selected range is replaced once.
-3. Test punctuation, whitespace, line breaks, tabs, apostrophes, underscores, digits, and non-ASCII letters.
-4. Move focus away and back; verify the context refreshes.
+## Native policy tests and build
 
-## Stage 3 popup checks
+```powershell
+cmake -S .\tools\PCWord.TsfProbe -B .\tools\PCWord.TsfProbe\build -A x64
+cmake --build .\tools\PCWord.TsfProbe\build --config Release
+ctest --test-dir .\tools\PCWord.TsfProbe\build -C Release --output-on-failure
+```
 
-1. Type **p** or **c**. Confirm the suggestion popup does not appear for a one-character prefix.
-2. Continue to **pro**, **com**, or **hel**. Confirm a compact suggestion panel appears inside the editor window.
-3. Continue typing while it is visible. Confirm keystrokes still go into the editor and suggestions refresh.
-4. Press Ctrl+Space to accept the first candidate; test Ctrl+2 and Ctrl+3 when those candidates are present.
-5. Press Escape. Confirm suggestions hide and do not reopen until the text/caret context changes.
-6. Enable sensitive mode. Confirm suggestions hide and no suggestion can be accepted.
-7. Select text or move focus away. Confirm suggestions hide and stale context cannot be accepted.
-8. Place the caret near the bottom/right edges of the editor. Confirm the panel stays inside the editor host.
-9. Verify exact resulting text and caret after accepting a suggestion. Watch for duplicate or missing characters.
+The two CTest executables are unit tests only; they do not activate TSF or test an application provider. If `build/` contains user-local tracked output, configure a fresh ignored directory such as `build-validation` instead.
 
-## Windows integration feasibility probe
+## Integration tests
 
-1. On Windows 11 with the .NET 10 SDK, run `dotnet run --project .\tools\PCWord.WindowsProbe\PCWord.WindowsProbe.csproj`.
-2. In Notepad or another test field, type only synthetic text such as `PCWord probe sample`; ensure no private content is in the focused field.
-3. With the synthetic text focused, opt in using `dotnet run --project .\\tools\\PCWord.WindowsProbe\\PCWord.WindowsProbe.csproj -- --allow-context-read`. Confirm the output identifies the focused process/control and reports whether TextPattern, selection metadata, caret geometry, and bounded context are available. Confirm no text content is printed.
-4. Repeat separately for a browser plain input, browser contenteditable, VS Code, an Office editor, and a terminal. Treat each field type as a separate observation.
-5. Test a password field and a selected text range. Confirm the probe reports password/selection status and skips surrounding context.
-6. Switch focus between applications and confirm the reported process/control identity changes.
-7. Do not attempt text edits: this probe is intentionally read-only. Record only application/version, field type, capability flags, and pass/fail in the compatibility matrix; do not record typed text.
+The UI Automation and TSF probes need an interactive Windows host. Use only disposable synthetic text. Start with reads disabled; for TSF, the environment opt-in is necessary but scope metadata must still pass the fail-closed policy. Do not register the TSF profile on a daily-use account; do not elevate or use machine-wide registration. Close apps and unregister when finished. Record app/version and capability flags—not text—in `docs/compatibility-matrix.md`.
 
-A successful UI Automation read does not establish safe editing. Compare observations with a native TSF prototype before selecting an explicit edit mechanism. Benchmarking remains deferred to the final stage.
+No external application runtime test is claimed until it is performed. Current exact build/test results and open blockers are in `docs/windows-integration-status.md`.

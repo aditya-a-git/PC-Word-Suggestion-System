@@ -1,4 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup><OutputType>WinExe</OutputType><TargetFramework>net10.0-windows</TargetFramework><UseWindowsForms>true</UseWindowsForms><EnableWindowsTargeting>true</EnableWindowsTargeting><ImplicitUsings>enable</ImplicitUsings><Nullable>enable</Nullable></PropertyGroup>
-  <ItemGroup><ProjectReference Include="..\PCWord.Core\PCWord.Core.csproj" /></ItemGroup>
+  <ItemGroup><ProjectReference Include="..\PCWord.Core\PCWord.Core.csproj" />
+    <ProjectReference Include="..\PCWord.Prediction\PCWord.Prediction.csproj" />
+    <Content Include="..\PCWord.Prediction\Dictionary\sample.tsv" Link="Dictionary\sample.tsv" CopyToOutputDirectory="PreserveNewest" /></ItemGroup>
 </Project>

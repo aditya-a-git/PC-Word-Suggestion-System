@@ -3,7 +3,6 @@
 #include <inputscope.h>
 #include <oleauto.h>
 #include "InputSafetyPolicy.h"
-#include "InputScopePolicy.h"
 #include <atomic>
 #include <algorithm>
 #include <iterator>
@@ -101,7 +100,7 @@ static HRESULT RegisterComServer()
     return S_OK;
 }
 
-static void UnregisterTsfProfile();
+static HRESULT UnregisterTsfProfile();
 
 static HRESULT RegisterTsfProfile()
 {
@@ -128,7 +127,7 @@ static HRESULT RegisterTsfProfile()
         constexpr LANGID kProfileLanguage = 0x0409;
         hr = profiles->AddLanguageProfile(CLSID_PCWordTsfProbe,
             kProfileLanguage, GUID_PCWordTsfProfile,
-            L"PCWord TSF Feasibility Probe", -1, nullptr, 0, 0);
+            L"PCWord TSF Feasibility Probe", static_cast<UINT>(-1), nullptr, 0, 0);
         TraceHr(L"ITfInputProcessorProfiles::AddLanguageProfile", hr);
         if (SUCCEEDED(hr))
         {
@@ -191,27 +190,34 @@ static HRESULT RegisterTsfProfile()
     return hr;
 }
 
-static void UnregisterTsfProfile()
+static HRESULT UnregisterTsfProfile()
 {
+    HRESULT result = S_OK;
     ITfInputProcessorProfiles* profiles = nullptr;
-    if (SUCCEEDED(CoCreateInstance(CLSID_TF_InputProcessorProfiles, nullptr,
+    HRESULT hr = CoCreateInstance(CLSID_TF_InputProcessorProfiles, nullptr,
         CLSCTX_INPROC_SERVER, IID_ITfInputProcessorProfiles,
-        reinterpret_cast<void**>(&profiles))))
-    {
-        profiles->Unregister(CLSID_PCWordTsfProbe);
-        profiles->Release();
-    }
+        reinterpret_cast<void**>(&profiles));
+    if (FAILED(hr))
+        return hr;
+
+    hr = profiles->Unregister(CLSID_PCWordTsfProbe);
+    TraceHr(L"ITfInputProcessorProfiles::Unregister", hr);
+    if (FAILED(hr)) result = hr;
+    profiles->Release();
 
     ITfCategoryMgr* categories = nullptr;
-    if (SUCCEEDED(CoCreateInstance(CLSID_TF_CategoryMgr, nullptr, CLSCTX_INPROC_SERVER,
-        IID_ITfCategoryMgr, reinterpret_cast<void**>(&categories))))
-    {
-        categories->UnregisterCategory(CLSID_PCWordTsfProbe,
-            GUID_TFCAT_TIP_KEYBOARD, CLSID_PCWordTsfProbe);
-        categories->Release();
-    }
-}
+    hr = CoCreateInstance(CLSID_TF_CategoryMgr, nullptr, CLSCTX_INPROC_SERVER,
+        IID_ITfCategoryMgr, reinterpret_cast<void**>(&categories));
+    if (FAILED(hr))
+        return FAILED(result) ? result : hr;
 
+    hr = categories->UnregisterCategory(CLSID_PCWordTsfProbe,
+        GUID_TFCAT_TIP_KEYBOARD, CLSID_PCWordTsfProbe);
+    TraceHr(L"ITfCategoryMgr::UnregisterCategory", hr);
+    if (FAILED(hr) && SUCCEEDED(result)) result = hr;
+    categories->Release();
+    return result;
+}
 class TsfProbe final :
     public ITfTextInputProcessor,
     public ITfThreadMgrEventSink,
@@ -263,24 +269,34 @@ public:
     STDMETHODIMP Activate(ITfThreadMgr* threadMgr, TfClientId clientId) override
     {
         if (!threadMgr) return E_INVALIDARG;
-        m_threadMgr = threadMgr;
-        m_threadMgr->AddRef();
-        m_clientId = clientId;
+        if (m_threadMgr) return E_UNEXPECTED;
 
         ITfSource* source = nullptr;
-        HRESULT hr = m_threadMgr->QueryInterface(IID_ITfSource,
+        HRESULT hr = threadMgr->QueryInterface(IID_ITfSource,
             reinterpret_cast<void**>(&source));
-        if (SUCCEEDED(hr))
+        if (FAILED(hr))
         {
-            hr = source->AdviseSink(IID_ITfThreadMgrEventSink,
-                static_cast<ITfThreadMgrEventSink*>(this), &m_threadSinkCookie);
-            source->Release();
+            TraceHr(L"ITfThreadMgr::QueryInterface(ITfSource)", hr);
+            return hr;
         }
-        if (SUCCEEDED(hr))
-            Trace(L"Text service activated; observing TSF focus/edit notifications only.");
-        return hr;
-    }
 
+        DWORD sinkCookie = TF_INVALID_COOKIE;
+        hr = source->AdviseSink(IID_ITfThreadMgrEventSink,
+            static_cast<ITfThreadMgrEventSink*>(this), &sinkCookie);
+        source->Release();
+        if (FAILED(hr))
+        {
+            TraceHr(L"ITfSource::AdviseSink(ITfThreadMgrEventSink)", hr);
+            return hr;
+        }
+
+        threadMgr->AddRef();
+        m_threadMgr = threadMgr;
+        m_clientId = clientId;
+        m_threadSinkCookie = sinkCookie;
+        Trace(L"Text service activated; observing TSF focus/edit notifications only.");
+        return S_OK;
+    }
     STDMETHODIMP Deactivate() override
     {
         DetachContext();
@@ -358,10 +374,9 @@ public:
             return S_OK;
         }
 
-        const pcword::tsf::InputScopeStatus inputScopeStatus =
-            GetInputScopeStatus(context, cookie, selection.range);
-        const bool optedIn = IsContextReadOptedIn();
-        const bool allowRead = pcword::tsf::CanReadContext(optedIn, inputScopeStatus);
+        const auto inputScopeStatus = GetInputScopeStatus(context, cookie, selection.range);
+        const bool allowRead = pcword::input::CanReadContext(
+            IsContextReadOptedIn(), inputScopeStatus);
         LONG beforeCount = -1, afterCount = -1;
         RECT caretRect{};
         bool caretRectAvailable = false;
@@ -379,14 +394,14 @@ public:
             ReadBoundedLengths(cookie, selection.range, &beforeCount, &afterCount);
 
         wchar_t summary[256]{};
-        const wchar_t* scopeLabel =
-            inputScopeStatus == pcword::tsf::InputScopeStatus::Sensitive ? L"password" :
-            (inputScopeStatus == pcword::tsf::InputScopeStatus::NonSensitive
-                ? L"non-password" : L"unknown");
+        const wchar_t* scopeLabel = inputScopeStatus == pcword::input::FieldClassification::Sensitive
+            ? L"sensitive"
+            : (inputScopeStatus == pcword::input::FieldClassification::DeclaredNonSensitive
+                ? L"declared-non-sensitive" : L"unknown");
         swprintf_s(summary, L"Edit event: input-scope=%s opt-in=%s selection=collapsed "
             L"context-read=%s before=%ld after=%ld caret-rect=%s rect=(%ld,%ld,%ld,%ld)",
             scopeLabel,
-            optedIn ? L"yes" : L"no",
+            IsContextReadOptedIn() ? L"yes" : L"no",
             allowRead ? L"attempted" : L"skipped",
             beforeCount, afterCount, caretRectAvailable ? L"yes" : L"no",
             caretRect.left, caretRect.top, caretRect.right, caretRect.bottom);
@@ -454,32 +469,31 @@ private:
         return length == 1 && value[0] == L'1';
     }
 
-    // Return a positive safe classification only when metadata is available and
-    // reports at least one scope. All failures and ambiguous results are Unknown.
-    static pcword::tsf::InputScopeStatus GetInputScopeStatus(
+    // InputScope is a host hint. It is used only after explicit opt-in and never
+    // read as proof that user-provided content is inherently non-sensitive.
+    static pcword::input::FieldClassification GetInputScopeStatus(
         ITfContext* context, TfEditCookie cookie, ITfRange* range)
     {
-        // Microsoft documents GUID_PROP_INPUTSCOPE retrieval through
-        // ITfContext::GetAppProperty followed by ITfReadOnlyProperty::GetValue.
-        // A failed GetValue must remain Unknown; do not infer safety.
         ITfReadOnlyProperty* property = nullptr;
         HRESULT hr = context->GetAppProperty(PCWORD_GUID_PROP_INPUTSCOPE, &property);
-        if (FAILED(hr) || !property)
+        if (hr != S_OK || !property)
         {
             TraceHr(L"ITfContext::GetAppProperty(GUID_PROP_INPUTSCOPE)", hr);
             if (property) property->Release();
-            return pcword::tsf::InputScopeStatus::Unknown;
+            return pcword::input::FieldClassification::Unknown;
         }
 
         VARIANT value;
         VariantInit(&value);
         hr = property->GetValue(cookie, range, &value);
         property->Release();
-        if (FAILED(hr))
+        if (hr != S_OK)
         {
-            TraceHr(L"GUID_PROP_INPUTSCOPE GetValue", hr);
+            // S_FALSE means no unique property value covers this range; failures
+            // such as E_FAIL identify GetValue itself as the failing call.
+            TraceHr(L"ITfReadOnlyProperty::GetValue(GUID_PROP_INPUTSCOPE)", hr);
             VariantClear(&value);
-            return pcword::tsf::InputScopeStatus::Unknown;
+            return pcword::input::FieldClassification::Unknown;
         }
 
         wchar_t message[128]{};
@@ -487,7 +501,8 @@ private:
             static_cast<unsigned int>(value.vt));
         Trace(message);
 
-        pcword::tsf::InputScopeStatus scopeStatus = pcword::tsf::InputScopeStatus::Unknown;
+        pcword::input::FieldClassification classification =
+            pcword::input::FieldClassification::Unknown;
         if (value.vt == VT_UNKNOWN && value.punkVal)
         {
             ITfInputScope* inputScope = nullptr;
@@ -495,7 +510,7 @@ private:
                 reinterpret_cast<void**>(&inputScope));
             if (FAILED(hr) || !inputScope)
             {
-                TraceHr(L"InputScope QueryInterface(ITfInputScope)", hr);
+                TraceHr(L"IUnknown::QueryInterface(IID_ITfInputScope)", hr);
             }
             else
             {
@@ -511,37 +526,20 @@ private:
                     swprintf_s(message, L"InputScope count=%u",
                         static_cast<unsigned int>(count));
                     Trace(message);
-
-                    // Empty or unavailable metadata is not proof that a field
-                    // is safe to read. Fail closed unless at least one scope
-                    // was positively reported and none is IS_PASSWORD.
-                    if (count > 0 && scopes)
-                    {
-                        scopeStatus = pcword::tsf::InputScopeStatus::NonSensitive;
-                        for (UINT i = 0; i < count; ++i)
-                        {
-                            if (pcword::tsf::IsSensitiveInputScope(scopes[i]))
-                            {
-                                scopeStatus = pcword::tsf::InputScopeStatus::Sensitive;
-                                break;
-                            }
-                        }
-                    }
+                    classification = pcword::input::ClassifyScopes(scopes, count);
                 }
-
                 if (scopes) CoTaskMemFree(scopes);
                 inputScope->Release();
             }
         }
         else
         {
-            Trace(L"InputScope value is not a VT_UNKNOWN interface.");
+            Trace(L"GUID_PROP_INPUTSCOPE value is not a VT_UNKNOWN interface.");
         }
 
         VariantClear(&value);
-        return scopeStatus;
+        return classification;
     }
-
     static void ReadBoundedLengths(TfEditCookie cookie, ITfRange* caret,
         LONG* beforeCount, LONG* afterCount)
     {
@@ -619,8 +617,19 @@ public:
     }
     STDMETHODIMP LockServer(BOOL lock) override
     {
-        if (lock) ++g_locks; else --g_locks;
-        return S_OK;
+        if (lock)
+        {
+            ++g_locks;
+            return S_OK;
+        }
+
+        long current = g_locks.load();
+        while (current > 0)
+        {
+            if (g_locks.compare_exchange_weak(current, current - 1))
+                return S_OK;
+        }
+        return E_UNEXPECTED;
     }
 
 private:
@@ -683,8 +692,10 @@ STDAPI DllUnregisterServer(void)
     if (FAILED(initHr))
         return initHr;
 
-    UnregisterTsfProfile();
+    const HRESULT profileHr = UnregisterTsfProfile();
     CoUninitialize();
+    if (FAILED(profileHr))
+        return profileHr;
 
     LONG result = RegDeleteTreeW(HKEY_CURRENT_USER,
         (L"Software\\Classes\\CLSID\\" + GuidString(CLSID_PCWordTsfProbe)).c_str());

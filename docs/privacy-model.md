@@ -27,3 +27,9 @@ Logging, if added later, must be metadata-only by default and must never contain
 ## User controls and retention
 
 The harness process holds its text in memory as a normal editor would; closing the process ends that in-memory session. The Stage 2 manager keeps only its current bounded context. No persistence or personalization exists. A global pause/status control is still a future application-shell requirement.
+
+## Updated TSF probe policy
+
+The TSF diagnostic read path now requires both `PCWORD_TSF_ALLOW_CONTEXT_READ=1` and a recognized declared non-sensitive InputScope. Explicit password, numeric password, numeric/alphanumeric PIN, PIN-set, and private scopes are denied. Empty, default, unsupported, ambiguous, missing, failed, and non-`S_OK` property results are unknown and denied. This policy is a conservative diagnostic gate; the host's InputScope is not proof that ordinary text is free of private information. Context values remain bounded and transient; only method names, HRESULTs, scope category, and character counts are emitted to debugger output.
+
+No production TSF adapter, TSF edit operation, cross-process popup, or global key hook was added. The shared edit validator is only a preflight contract. The controlled editor's local replacement remains the only implemented edit path, and verifies its resulting text and caret.

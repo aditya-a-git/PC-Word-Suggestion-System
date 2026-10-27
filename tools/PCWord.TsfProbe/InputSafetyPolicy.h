@@ -1,19 +1,13 @@
 #pragma once
 
-// Input-safety decisions are intentionally independent of the TSF API lookup.
-// The TSF adapter must classify a field as non-sensitive before any context
-// read is permitted. Missing, failed, or ambiguous metadata is Unknown.
-namespace pcword::tsf
-{
-    enum class InputScopeStatus
-    {
-        NonSensitive,
-        Sensitive,
-        Unknown
-    };
+#include "InputScopePolicy.h"
 
-    constexpr bool CanReadContext(bool optedIn, InputScopeStatus status) noexcept
+namespace pcword::input
+{
+    // Diagnostic reads require both an explicit user opt-in and a positive metadata
+    // classification. Opt-in never overrides sensitive, missing, or ambiguous scope.
+    constexpr bool CanReadContext(bool optedIn, FieldClassification classification) noexcept
     {
-        return optedIn && status == InputScopeStatus::NonSensitive;
+        return optedIn && classification == FieldClassification::DeclaredNonSensitive;
     }
 }
