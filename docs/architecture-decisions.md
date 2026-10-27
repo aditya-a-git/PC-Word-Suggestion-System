@@ -62,3 +62,16 @@
 **Trade-offs and limitations.** UI Automation providers differ by application and field type. Password metadata is not a universal sensitivity signal; a non-password field may still contain private information. The probe demonstrates only what a particular provider exposes at a particular moment. It does not establish stale-context-safe replacement, a non-activating global overlay, or system-wide compatibility.
 
 **Next decision gate.** Run the documented synthetic-text matrix on Notepad, browser text input and contenteditable, VS Code, an office editor, and terminal. Compare the observations with a native TSF text-service proof of concept. Do not connect the prediction engine to other applications or claim system-wide support until both context acquisition and an explicit edit can be verified without duplicated/lost characters or focus theft.
+
+
+## ADR-0005: Keep TSF integration in feasibility mode until field safety and edit semantics are proven
+
+**Status:** Provisional; production integration is not selected.
+
+**Evidence from API research.** Microsoft documents ITfContext::GetAppProperty(GUID_PROP_INPUTSCOPE, ...) and ITfReadOnlyProperty::GetValue(...) as the input-scope lookup path. The API can report that the context owner does not support a property, and an unspecified E_FAIL does not establish whether a field is safe. Microsoft also requires text modifications to occur through an authorized TSF edit session; the current probe's read-only notification callback must not be used for insertion.
+
+**Decision.** Keep the native TSF component as a read-only feasibility probe until a Windows runtime test proves stable, bounded context access in a controlled editor and verifies an explicit edit in a separate authorized edit-session experiment. Classify Password, PIN, and Private input scopes as sensitive. Unknown scope, unsupported property, or any lookup failure denies context reads. The UI Automation probe remains diagnostic-only and is not a fallback that automatically reads or edits arbitrary fields.
+
+**Consequences.** The current implementation does not yet provide a production cross-process adapter, system-wide popup, or system-wide acceptance operation. These must be implemented only after the supported field set and edit semantics are demonstrated. No broad compatibility claim is allowed based on the API design alone.
+
+**Exit gate.** Build and run CTest on Windows, verify scope classification and opt-in behavior with synthetic text, record results by application/field, then implement version-checked edit acceptance through TSF edit sessions. Do not begin contextual next-word prediction until the integration gate is met.
