@@ -70,3 +70,6 @@ Password/PIN fields must not be read. If input sensitivity cannot be determined 
 ## Decision gate
 
 Do not integrate TSF into the prediction engine until Windows runtime tests establish field coverage, stable caret context, and reliable invalidation on focus/context changes. A separate edit-session experiment must verify stale-context rejection and no duplicated/lost characters before replacement is considered. Benchmarking remains deferred to the final stage.
+
+
+The property API may legitimately be unsupported by a context owner; Microsoft documents S_FALSE for that case and E_FAIL for unspecified failure. Neither result may be interpreted as safe. See [Windows integration status](windows-integration-status.md) for API sources and the current implementation boundary.
