@@ -366,7 +366,7 @@ Add a small local next-word predictor after an eligible word boundary, evaluated
 
 ### Status
 
-This is an implementation plan only. Stage 5 code, dataset import, and evaluation have not been delivered; Stage 5 is not complete.
+Implementation status (2026-10-28): the bounded offline n-gram predictor, owned-editor boundary integration, explicit zero-prefix acceptance validation, metrics integration, and local evaluation harness are implemented. Automated Release build/tests are the verification target. The public fixed-split corpus download reset in this environment, so test-set quality/performance results and interactive WinForms verification are still outstanding. No corpus/model is bundled, arbitrary external applications remain unsupported, and Stage 5 exit criteria are not complete until these remaining validations are recorded.
 
 ---
 

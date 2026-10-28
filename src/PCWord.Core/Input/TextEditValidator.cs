@@ -64,12 +64,13 @@ public static class TextEditValidator
             return TextEditValidationResult.Refused(TextEditStatus.Unsupported);
         }
 
-        if (expectedPrefix.Length == 0 || !StringComparer.Ordinal.Equals(expectedPrefix, request.ExpectedText))
+        if (!StringComparer.Ordinal.Equals(expectedPrefix, request.ExpectedText))
             return TextEditValidationResult.Refused(TextEditStatus.StaleContext);
 
         bool candidateIsCurrent = currentCandidates.Contains(request.Replacement, StringComparer.Ordinal);
-        if (!candidateIsCurrent || request.Replacement.Length <= expectedPrefix.Length ||
-            !request.Replacement.StartsWith(expectedPrefix, StringComparison.OrdinalIgnoreCase))
+        if (!candidateIsCurrent || request.Replacement.Length == 0 ||
+            (expectedPrefix.Length > 0 && (request.Replacement.Length <= expectedPrefix.Length ||
+            !request.Replacement.StartsWith(expectedPrefix, StringComparison.OrdinalIgnoreCase))))
             return TextEditValidationResult.Refused(TextEditStatus.Failed);
 
         return TextEditValidationResult.Valid;

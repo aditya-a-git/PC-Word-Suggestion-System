@@ -40,10 +40,24 @@ Tracked `build/` and `tools/PCWord.TsfProbe/build/` outputs were removed from th
 
 The Windows controlled-editor UI was not launched in this run. Runtime timings for real RichTextBox acquisition and popup handling can be viewed using the app's **Performance stats** button. External apps remain unsupported; no Stage 0–3 retest is implied.
 
-A scoped source search was run:
+A scoped source inspection was run across the normal Core/Prediction/Stage0 path and the offline evaluator. It found no network-client APIs. Aggregate `Console.WriteLine` calls exist only in the evaluator and print numeric metrics/configuration; the model's `File.WriteAllText` is used only to serialize the locally generated model to the requested output path. No text-context or candidate logging/persistence API is used by live prediction. This is source inspection, not runtime network monitoring.
+
+The source-search command was:
 
 ```powershell
-rg -n -i "HttpClient|WebRequest|SocketsHttpHandler|WebSocket|TcpClient|UdpClient|NetworkStream|Process\.Start|Console\.Write|Debug\.Write|Trace\.Write|File\.Write|File\.Append|StreamWriter" src\PCWord.Core src\PCWord.Prediction src\PCWord.Stage0
+rg -n -i "HttpClient|WebRequest|SocketsHttpHandler|WebSocket|TcpClient|UdpClient|NetworkStream" src\PCWord.Core src\PCWord.Prediction src\PCWord.Stage0 tools\PCWord.Evaluation
 ```
 
-It found no network-client, logging, or content-write API matches in those prediction-path projects. This is source inspection, not a runtime network capture or a repository-wide security audit. The normal path loads the bundled dictionary locally.
+The query returned no matches. This does not constitute a runtime network capture or a repository-wide security audit. The normal path loads the bundled dictionary and optional local model.
+
+## Stage 5 n-gram verification
+
+The automated suite covers tokenizer normalization, unigram/bigram/trigram ranking, backoff, deterministic ties, vocabulary bounds, sentence and line reset, empty models, boundary eligibility, sensitive rejection, stale versions, and validated zero-prefix insertion. Run the Release suite/build commands above. For dataset evaluation:
+
+```powershell
+dotnet run --project .\tools\PCWord.Evaluation\PCWord.Evaluation.csproj --configuration Release -- <train.txt> <validation.txt> <test.txt> <local-model-output.json>
+```
+
+Supply three distinct UTF-8 files converted from the pinned Parquet splits; see `data/README.md`. The command selects order/backoff on validation, evaluates test once, and prints aggregate quality and resource metrics only. The synthetic manager-plus-model request timing excludes the WinForms adapter/UI and edit acceptance. The model contains corpus-derived vocabulary/counts; keep it local and do not train on private documents. The fixed-corpus run was blocked here by reset download connections.
+
+The controlled-editor form loads `%LOCALAPPDATA%\PCWord\ngram-model.json` on launch if present. Manual check (not performed here): place a locally generated model there, open the WinForms editor, type synthetic non-sensitive context ending at a word boundary, verify up to three candidates, accept with Ctrl+Space, and confirm insertion preserves punctuation/trailing spaces. Then test partial words, selection, sensitive toggle, pause/resume, caret/focus changes, and that stale suggestions disappear. This remains unverified; arbitrary external applications are unsupported.

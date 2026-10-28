@@ -11,7 +11,8 @@ public enum CompletionMetricStage
     ResultDelivery = 3,
     UiUpdate = 4,
     EndToEndPrediction = 5,
-    LookupOnly = 6
+    LookupOnly = 6,
+    NGramLookup = 7
 }
 
 public sealed record CompletionMetricSummary(

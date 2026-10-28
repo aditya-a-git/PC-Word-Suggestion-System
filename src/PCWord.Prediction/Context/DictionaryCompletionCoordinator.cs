@@ -4,6 +4,7 @@ using PCWord.Core.Suggestions;
 using PCWord.Prediction.Diagnostics;
 using PCWord.Prediction.Dictionary;
 using PCWord.Prediction.Ranking;
+using PCWord.Prediction.Inference;
 
 namespace PCWord.Prediction.Context;
 
@@ -31,6 +32,7 @@ public sealed class DictionaryCompletionCoordinator : IDisposable
     private readonly CandidateRanker _ranker;
     private readonly PredictionContextManager _contextManager;
     private readonly CompletionMetrics _metrics;
+    private readonly NGramModel? _nextWordModel;
     private bool _enabled = true;
     private bool _disposed;
     private IReadOnlyList<string> _currentCandidates = Array.Empty<string>();
@@ -39,7 +41,8 @@ public sealed class DictionaryCompletionCoordinator : IDisposable
         IInputAdapter adapter,
         CandidateRanker ranker,
         PredictionContextManager? contextManager = null,
-        CompletionMetrics? metrics = null)
+        CompletionMetrics? metrics = null,
+        NGramModel? nextWordModel = null)
     {
         ArgumentNullException.ThrowIfNull(adapter);
         ArgumentNullException.ThrowIfNull(ranker);
@@ -49,6 +52,7 @@ public sealed class DictionaryCompletionCoordinator : IDisposable
             InputContextSnapshot.MaximumTextBeforeCaret,
             InputContextSnapshot.MaximumTextAfterCaret);
         _metrics = metrics ?? new CompletionMetrics();
+        _nextWordModel = nextWordModel;
         _adapter.ContextChanged += AdapterOnContextChanged;
         _adapter.SetEnabled(true);
     }
@@ -146,7 +150,9 @@ public sealed class DictionaryCompletionCoordinator : IDisposable
         }
 
         PredictionContext context = _contextManager.Current;
-        if (!_enabled || !context.CanPredictCompletion || context.Prefix.Length < MinimumPrefixLength)
+        if (!_enabled || (!context.CanPredictCompletion &&
+            !(context.CanPredictNextWord && _nextWordModel is not null)) ||
+            (context.CanPredictCompletion && context.Prefix.Length < MinimumPrefixLength))
         {
             _currentCandidates = Array.Empty<string>();
             Deliver(snapshot.Version, snapshot.FieldId, _currentCandidates, snapshot.CaretBounds, startedAt);
@@ -157,18 +163,29 @@ public sealed class DictionaryCompletionCoordinator : IDisposable
         IReadOnlyList<string> candidates;
         try
         {
-            candidates = _ranker.GetSuggestions(context.Prefix, SuggestionState.MaximumSuggestions)
-                .Select(entry => SuggestionFormatter.MatchPrefixCasing(context.Prefix, entry.Word))
-                .ToArray();
+            candidates = context.CanPredictNextWord
+                ? _nextWordModel!.Predict(context.PrecedingText, SuggestionState.MaximumSuggestions)
+                    .Select(word => FormatNextWordCasing(context.PrecedingText, word)).ToArray()
+                : _ranker.GetSuggestions(context.Prefix, SuggestionState.MaximumSuggestions)
+                    .Select(entry => SuggestionFormatter.MatchPrefixCasing(context.Prefix, entry.Word)).ToArray();
         }
         finally
         {
-            _metrics.Record(CompletionMetricStage.DictionaryLookupAndRanking,
+            _metrics.Record(context.CanPredictNextWord ? CompletionMetricStage.NGramLookup : CompletionMetricStage.DictionaryLookupAndRanking,
                 Stopwatch.GetElapsedTime(lookupStartedAt));
         }
 
         _currentCandidates = candidates;
         Deliver(snapshot.Version, snapshot.FieldId, candidates, snapshot.CaretBounds, startedAt);
+    }
+
+    private static string FormatNextWordCasing(string precedingText, string word)
+    {
+        if (word.Length == 0) return word;
+        int last = precedingText.Length - 1;
+        while (last >= 0 && char.IsWhiteSpace(precedingText[last])) last--;
+        bool sentenceStart = last < 0 || precedingText[last] is '.' or '!' or '?';
+        return sentenceStart ? char.ToUpperInvariant(word[0]) + word[1..] : word;
     }
 
     private void Deliver(

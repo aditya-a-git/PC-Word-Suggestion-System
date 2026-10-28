@@ -1,6 +1,6 @@
 # PCWord
 
-PCWord is a Windows desktop word-completion prototype. Stage 4 connects the PCWord-owned WinForms editor to the existing local frequency-ranked dictionary. It shows up to three completions for eligible partial words, supports explicit acceptance and dismissal, and includes a pause toggle.
+PCWord is a Windows desktop typing prototype. The PCWord-owned WinForms editor supports frequency-ranked partial-word completion and an optional local n-gram next-word model at eligible word boundaries. Both show up to three candidates and use explicit acceptance, dismissal, and a pause toggle.
 
 ## Build, test, and run
 
@@ -36,6 +36,6 @@ The current Windows build verifies native compilation and the two input-scope/sa
 - External TSF policy settings are stored under `HKCU\Software\PCWord`: an Enabled DWORD and an Allowlist multi-string containing executable file names only. The managed app starts this feature paused by default and reports whether Ctrl+Alt+Shift+P was registered. Names are matched case-insensitively and exactly, but file-name matching can be spoofed by a differently located binary; path/signature checks are a later hardening step. Do not add browsers by default: if InputScope is Unknown, ordinary non-password fields such as card-number or OTP fields would be allowed.
 - No confidence score is inferred; current dictionary ranking is frequency-based with a two-character minimum prefix and a three-candidate cap.
 - Stage 4's controlled-editor dictionary path and local benchmark are implemented. Runtime measurements from the live WinForms UI are available in the app but were not collected in this run. External Windows integration remains unsupported.
-- Stage 5 is planned only. Its n-gram predictor and evaluation have not been implemented.
+- Stage 5 code provides a bounded offline model, evaluation tool, and controlled-editor integration. It loads an optional model from `%LOCALAPPDATA%\PCWord\ngram-model.json`; generate one with the Stage 5 evaluator. No corpus or model is bundled. WikiText evaluation could not be run in this environment because dataset download connections reset, so Stage 5 quality/performance exit criteria remain incomplete. See `data/README.md` and `docs/benchmarks.md`.
 
 See `docs/testing-guide.md`, `docs/benchmarks.md`, `docs/windows-integration-status.md`, `docs/compatibility-matrix.md`, `docs/privacy-model.md`, and `docs/architecture-decisions.md`.

@@ -16,7 +16,7 @@ The benchmark uses fixed synthetic prefixes and prints aggregate timing/resource
 
 ## Offline behavior and source inspection
 
-The normal path reads the bundled dictionary file locally. A scoped source search over `PCWord.Core`, `PCWord.Prediction`, and `PCWord.Stage0` found no network-client, content-logging, or content-write API matches. This is not a runtime packet capture or a repository-wide security audit. No prediction request needs network access.
+The normal path reads the bundled dictionary and optional generated model locally. A scoped source search across Core, Prediction, Stage0, and the evaluator found no network-client APIs. The evaluator prints aggregate metric/configuration values and the model serializer writes only the generated model to its explicit output path; neither path logs or persists live editor context. This is not a runtime packet capture or a repository-wide security audit. Ordinary prediction needs no network access.
 
 ## Feasibility tools
 
@@ -29,3 +29,7 @@ The per-user registry stores only the Enabled flag and executable names. The hot
 These gates control diagnostic context reads only. No external-app prediction path is implemented or supported. The probes are not an automatic production fallback.
 
 No global keyboard hook, raw key event recorder, text telemetry, personalization store, cross-process IPC, or TSF edit session exists. No typed text is logged or persisted by the normal prediction path.
+
+## Stage 5 local n-gram model
+
+The optional next-word model is loaded only from `%LOCALAPPDATA%\PCWord\ngram-model.json`. It is built offline by the separate evaluator from local split files; prediction does not make network requests. The application holds the bounded preceding context and up to three candidates transiently, then uses the same version/field-checked adapter edit path as dictionary completion. Model vocabulary and counts are persisted in that local model file; no document history or accepted-text personalization is recorded. Train only from the documented public dataset, not personal documents. The evaluator prints aggregate counts and timings and never prints corpus lines, prefixes, or predictions. Source inspection does not replace runtime network monitoring.

@@ -5,6 +5,7 @@ using PCWord.Prediction.Dictionary;
 using PCWord.Prediction.Context;
 using PCWord.Prediction.Ranking;
 using PCWord.Prediction.Diagnostics;
+using PCWord.Prediction.Inference;
 
 namespace PCWord.Stage0;
 
@@ -37,7 +38,9 @@ internal sealed class ControlledEditorForm : Form
         CandidateRanker? loadedRanker = CreateRanker(metrics);
         CandidateRanker ranker = loadedRanker ?? new CandidateRanker(new PrefixIndex(Array.Empty<DictionaryEntry>()));
         inputAdapter = new ControlledEditorInputAdapter(editor, () => sensitive.Checked, metrics);
-        completionCoordinator = new DictionaryCompletionCoordinator(inputAdapter, ranker, metrics: metrics);
+        NGramModel? nextWordModel = LoadLocalNextWordModel();
+        completionCoordinator = new DictionaryCompletionCoordinator(inputAdapter, ranker, metrics: metrics,
+            nextWordModel: nextWordModel);
         completionCoordinator.SuggestionsChanged += CompletionCoordinatorOnSuggestionsChanged;
 
         Text = "PCWord — Controlled Editor";
@@ -174,6 +177,15 @@ internal sealed class ControlledEditorForm : Form
         {
             metrics.Record(CompletionMetricStage.DictionaryStartup, Stopwatch.GetElapsedTime(startedAt));
         }
+    }
+
+    private static NGramModel? LoadLocalNextWordModel()
+    {
+        string modelPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+            "PCWord", "ngram-model.json");
+        try { return File.Exists(modelPath) ? NGramModel.Load(modelPath) : null; }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidDataException or System.Text.Json.JsonException)
+        { return null; }
     }
 
     private void CompletionCoordinatorOnSuggestionsChanged(object? sender, CompletionUpdatedEventArgs args)
