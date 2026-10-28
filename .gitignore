@@ -10,3 +10,5 @@ TestResults/
 # Native CMake build trees and generated caches
 **/build/
 **/build-*/
+build/
+tools/PCWord.TsfProbe/build/
