@@ -101,7 +101,7 @@ Run only in a disposable Windows account or VM with synthetic text. Never type o
 
 ### Fixed action script per field
 
-For each non-password field, in order: type an ordinary synthetic word at a normal pace; type another synthetic string rapidly; backspace several characters; select a portion and replace it with synthetic text; type punctuation; move focus to a second field and back. For a password field, focus only and verify status; never type a password, even a real one. Capture only the probe's activation, focus-change and edit-event status records and the generated counts. Records contain selection/caret availability, bounded character counts, fixed InputScope stage/HRESULT, classification, decision and allowed/denied status. Never copy, transcribe or otherwise record typed text.
+For each non-password field, in order: type an ordinary synthetic word at a normal pace; type another synthetic string rapidly; backspace several characters; select a portion and replace it with synthetic text; type punctuation; move focus to a second field and back. For a password field, focus only and verify status; never type a password, even a real one. Capture only the probe records `Text service activated.`, `TSF document focus changed.`, and `edit-event ...`, plus generated counts. Each edit record contains selection/caret availability, bounded character counts, fixed InputScope stage/HRESULT, classification, decision and allowed/denied status. DebugView may split the `[PCWORD.TSF] ` marker and status into consecutive records; the report parser pairs them by process ID. Never copy, transcribe or otherwise record typed text.
 
 ### Target matrix (test each row separately)
 
@@ -128,4 +128,4 @@ When adapter, policy or popup code changes, rerun all matrix rows that change co
 
 ### Stage 6 implementation verification (2026-10-28)
 
-The direct GitHub edit was not built or tested in this session. The compatibility report and fixture tests are committed source changes only; there is no claim here of a successful compile, test run or real-app session. The only external-app observations remain the owner reports described in the matrix, without dates, exact versions or saved logs.
+GitHub Actions run [40702408590](https://github.com/aditya-a-git/PC-Word-Suggestion-System/actions/runs/40702408590) for commit `fa8ad0857488bfba0098833d4bbfea9305637165` completed successfully: Release restore and build passed, the managed suite passed 159/159 tests, the native x64 TSF probe configured and built, and CTest passed 2/2 policy tests. The probe build reported an unused `TraceDecision` C4505 warning; a follow-up removes that unused function and will be rechecked by CI. No external app host session was performed. The only external-app observations remain owner reports without dates, exact versions or saved logs.

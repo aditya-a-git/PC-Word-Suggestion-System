@@ -147,14 +147,6 @@ static const wchar_t* ClassificationName(pcword::input::FieldClassification clas
     }
 }
 
-static void TraceDecision(pcword::input::SafetyDecision decision)
-{
-    wchar_t message[128]{};
-    swprintf_s(message, L"decision=%s allowed=%s", DecisionName(decision),
-        pcword::input::IsAllowed(decision) ? L"yes" : L"no");
-    Trace(message);
-}
-
 static void TraceEditEvent(bool selectionKnown, bool collapsedSelection,
     bool caretRectAvailable, LONG beforeCount, LONG afterCount,
     const wchar_t* inputScopeStage, HRESULT inputScopeHr,
