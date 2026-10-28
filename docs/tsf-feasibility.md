@@ -5,7 +5,7 @@ The native probe in `tools/PCWord.TsfProbe` is an experimental C++ COM text serv
 ## Scope
 
 - Observes service activation, document focus, edit notifications, collapsed-selection availability, and caret rectangle availability.
-- Bounded surrounding-text counts are behind an explicit target-process environment opt-in.
+- Bounded reads are behind the full per-user settings, allowlist, structural, and diagnostic opt-in gates. Text and read counts are not logged.
 - Text content is not emitted; no text is changed and no keystrokes are synthesized.
 - This is not a production adapter and has no prediction or suggestion UI.
 
@@ -22,7 +22,7 @@ The output is `tools\PCWord.TsfProbe\build\Release\PCWordTsfProbe.dll`. CI publi
 
 ## Controlled runtime test
 
-Use a disposable Windows VM or separate test account, synthetic text only, and a non-elevated 64-bit PowerShell session. The probe registers a per-user COM class and TSF profile under `HKEY_CURRENT_USER`; do not use machine-wide registration.
+Use a disposable Windows VM or separate test account, synthetic text only, and a 64-bit PowerShell session. The probe registers a per-user COM class and TSF profile under `HKEY_CURRENT_USER`; do not use machine-wide registration.
 
 After extracting the artifact, from the directory containing the DLL:
 
@@ -31,13 +31,13 @@ $dll = (Resolve-Path ".\PCWordTsfProbe.dll").Path
 & "$env:WINDIR\System32\regsvr32.exe" "$dll"
 ```
 
-If the profile is exposed in Windows input/language settings, enable it only for the test account. If it does not appear or activation cannot be confirmed, stop rather than trying elevated or machine-wide registration. Close test applications and unregister after testing:
+The project owner reports that non-elevated registration failed at `ITfInputProcessorProfiles::Register` with `0x80004005`, while elevated registration succeeded. This observation is not independently verified by the repository. If elevation is required in the test environment, use the same account and keep registration per-user; do not use machine-wide registration. Enable the profile only for the test account. Close test applications and unregister after testing:
 
 ```powershell
 & "$env:WINDIR\System32\regsvr32.exe" /u "$dll"
 ```
 
-The service logs status through Windows debugger output (for example, DebugView or Visual Studio's debugger output). It does not write a log file. Context reads are disabled unless `PCWORD_TSF_ALLOW_CONTEXT_READ=1` is inherited by the target application. Start with the opt-in **unset** and verify activation/focus/edit notifications first. Only if that works, close the application, set the variable in the PowerShell session, and launch the test application from that same session to test bounded counts:
+The service logs safety decision reason and allowed/denied through Windows debugger output (for example, DebugView or Visual Studio's debugger output); it does not write a log file or log text content. A diagnostic bounded read additionally requires `PCWORD_TSF_ALLOW_CONTEXT_READ=1`, `Enabled=1` and the host executable name in `HKCU\Software\PCWord\Allowlist`, plus eligible TSF state. Defaults are paused with only `notepad.exe` allowlisted; the managed app creates these defaults on first launch. The DLL rereads both registry values on each TSF edit notification and denies missing, unreadable or malformed values. Do not enable the external context toggle unless a diagnostic read is intended.
 
 ```powershell
 Remove-Item Env:PCWORD_TSF_ALLOW_CONTEXT_READ -ErrorAction SilentlyContinue
@@ -51,27 +51,27 @@ $env:PCWORD_TSF_ALLOW_CONTEXT_READ = "1"
 # Launch the test application from this same PowerShell session.
 ```
 
-Unset the variable again after the test. Do not use real personal data or password/PIN fields. Input-scope metadata is not a universal sensitivity guarantee; unknown or ambiguous scope must be treated as unavailable.
+Unset the variable again after the test. Do not use real personal data or password/PIN fields. Sensitive InputScope values always deny. Unknown or failed InputScope may pass only the exact allowlisted host gate and the additional opt-in/structural checks; the allowlist is not proof of field privacy. Do not add browsers by default because non-password fields such as card numbers and OTPs may have Unknown scope.
 
 ## Manual comparison
 
-Use synthetic text only. Test each field separately: Notepad, ordinary browser input, browser contenteditable, VS Code editor, and LeetCode editor. Record only app/version, field type, activation, context availability, collapsed selection, caret rectangle, bounded counts, and pass/fail. Never copy typed text into logs or notes.
+Use synthetic text only. Test each field separately only when it is explicitly allowlisted. Record app/version, field type, activation, policy decision reason, context availability, collapsed selection, caret rectangle availability, and pass/fail. Never record context counts or typed text in notes or logs. Do not add browsers to the default allowlist.
 
 For each app/field, record:
 - Did the service activate?
 - Were focus and edit notifications observed?
 - Was the selection collapsed?
 - Was caret geometry available?
-- With context reads explicitly enabled, were bounded before/after counts reported or left unavailable?
+- Did the reason code match the settings, scope, structural state, host allowlist, and diagnostic opt-in?
 - Did focus changes stop or redirect observations as expected?
 
 Password/PIN fields must not be read. If input sensitivity cannot be determined reliably, treat context as unavailable. TSF input scope is not a universal sensitivity guarantee, and a field's provider may not expose TSF context at all.
 
 ## Decision gate
 
-Do not integrate TSF into the prediction engine until Windows runtime tests establish field coverage, stable caret context, and reliable invalidation on focus/context changes. A separate edit-session experiment must verify stale-context rejection and no duplicated/lost characters before replacement is considered. Benchmarking remains deferred to the final stage.
+The new policy only gates diagnostic bounded reads. Do not integrate TSF into the prediction engine until Windows runtime tests establish field coverage, stable caret context, and reliable invalidation on focus/context changes. A separate edit-session experiment must verify stale-context rejection and no duplicated/lost characters before replacement is considered. Benchmarking remains deferred to the final stage.
 
 
-The property API may be unsupported by a context owner; either S_FALSE or E_FAIL is treated as unavailable by this probe. Microsoft documents the `GetAppProperty` then `GetValue` sequence, and the implementation follows that sequence. The exact cause of a given E_FAIL still requires host-specific diagnostics; do not infer that the field is safe. InputScope is advisory, not a general sensitivity proof. See [Windows integration status](windows-integration-status.md) for API sources and the current implementation boundary.
+The property API may be unsupported by a context owner; either S_FALSE or E_FAIL is classified Unknown by this probe. Microsoft documents the `GetAppProperty` then `GetValue` sequence, and the implementation follows that sequence. The exact cause of a given E_FAIL remains host-specific. Unknown scope passes only when the executable is allowlisted and all enabled, structural, and diagnostic opt-in gates pass; sensitive classifications still deny. See [Windows integration status](windows-integration-status.md) for current evidence and limitations.
 
 For a targeted diagnostic, use a disposable account, a standard Windows text control, and synthetic text. Register the x64 DLL per the instructions above, leave `PCWORD_TSF_ALLOW_CONTEXT_READ` unset, and capture debugger output containing only operation names and HRESULTs. This checks activation and property-call results without reading bounded text. Unregister the same DLL afterward. Do not treat a successful property query as authorization to send content into a prediction service.

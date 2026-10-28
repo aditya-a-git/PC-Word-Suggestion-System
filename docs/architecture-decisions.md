@@ -64,9 +64,9 @@
 **Next decision gate.** Run the documented synthetic-text matrix on Notepad, browser text input and contenteditable, VS Code, an office editor, and terminal. Compare the observations with a native TSF text-service proof of concept. Do not connect the prediction engine to other applications or claim system-wide support until both context acquisition and an explicit edit can be verified without duplicated/lost characters or focus theft.
 
 
-## ADR-0005: Keep TSF integration in feasibility mode until field safety and edit semantics are proven
+## ADR-0006: Keep TSF integration in feasibility mode until field safety and edit semantics are proven
 
-**Status:** Provisional; production integration is not selected.
+**Status:** Superseded by ADR-0008 for diagnostic context-read gating; production integration remains unselected.
 
 **Evidence from API research.** Microsoft documents ITfContext::GetAppProperty(GUID_PROP_INPUTSCOPE, ...) and ITfReadOnlyProperty::GetValue(...) as the input-scope lookup path. The API can report that the context owner does not support a property, and an unspecified E_FAIL does not establish whether a field is safe. Microsoft also requires text modifications to occur through an authorized TSF edit session; the current probe's read-only notification callback must not be used for insertion.
 
@@ -76,9 +76,9 @@
 
 **Exit gate.** Build and run CTest on Windows, verify scope classification and opt-in behavior with synthetic text, record results by application/field, then implement version-checked edit acceptance through TSF edit sessions. Do not begin contextual next-word prediction until the integration gate is met.
 
-## ADR-0006: use a bounded in-process adapter for the owned editor; keep external integration disabled
+## ADR-0007: use a bounded in-process adapter for the owned editor; keep production external integration disabled
 
-**Status:** Implemented for PCWord's WinForms editor; external Windows integration remains an experiment.
+**Status:** Implemented for PCWord's WinForms editor; production external Windows integration remains unsupported. Diagnostic TSF reads are separately gated by ADR-0008.
 
 **Decision.** Implement `IInputAdapter` directly over PCWord's own `RichTextBox`. Read only bounded RichEdit ranges around the caret; publish a per-control identity and monotonically increasing snapshot version; suppress context for disabled, unfocused, selected, sensitive, composing, unavailable, or malformed contexts. Connect snapshots to the existing context manager and dictionary ranking pipeline. Apply only a current explicitly accepted prefix replacement and verify the resulting text/caret.
 
@@ -87,3 +87,18 @@
 **Trade-offs and limits.** This is a real adapter implementation for the owned control, not an external-app adapter. It uses bounded reads, transient memory and no key hooks. Caret bounds come from the owned control and still require interactive verification. The native TSF `GetValue` E_FAIL remains unresolved and is treated as unknown. External applications receive no predictions or edits.
 
 **Verification gate.** The managed build and automated tests pass, but the controlled WinForms UI must still be manually exercised with synthetic text. Do not claim cross-application compatibility or pass the Stage 4 integration gate until a supported host demonstrates safe context, authorized edit behavior, and popup focus/positioning in repeatable tests.
+
+
+## ADR-0008: gate diagnostic TSF context by explicit per-user host approval and pause state
+
+**Status:** Implemented as a diagnostic read policy; external prediction remains unsupported.
+
+**Context and evidence.** The repository's TSF code obtains InputScope through `GetAppProperty(GUID_PROP_INPUTSCOPE)`, `GetValue`, `QueryInterface(ITfInputScope)`, and `GetInputScopes`. The observed `GetValue` result is E_FAIL in some tested fields, leaving classification Unknown. Existing `InputScopePolicy.h` marks Password (31), Private (61), NumericPassword (63), NumericPIN (64), AlphanumericPIN (65), and AlphanumericPINSet (66) as Sensitive. A project owner reports browser password detection but supplied no repository log, so this remains reported rather than verified evidence. Microsoft documents InputScope as guidance, not proof that a field cannot contain sensitive data.
+
+**Decision.** Use a single pure, ordered native policy decision. Missing/unreadable/malformed settings deny; otherwise paused denies; Sensitive always denies; unavailable/unfocused/non-collapsed/composing context denies; a host outside the exact user allowlist denies; then an allowlisted host with Unknown scope receives the distinct `AllowedByHostPolicy` result and DeclaredNonSensitive retains a separate `AllowedByDeclaredScope` result. The `PCWORD_TSF_ALLOW_CONTEXT_READ=1` diagnostic opt-in is an additional final gate. The app owns pause state through `HKCU\Software\PCWord\Enabled` and registers Ctrl+Alt+Shift+P with MOD_NOREPEAT. The native TSF service rereads `Enabled` and `Allowlist` on each edit notification. When the whole settings key is absent, the managed app creates `Enabled=0` and a `REG_MULTI_SZ` allowlist containing only `notepad.exe`; if an existing key is partial or malformed, it is not repaired automatically and the native side denies.
+
+**Host matching and privacy.** The TSF service takes the current process executable name from `GetModuleFileNameW(nullptr, ...)`, extracts only the file name, and compares case-insensitively and exactly. Empty names, whitespace, path separators, and wildcard characters are invalid. A different binary at another path can use an allowlisted name; path/signature validation is deferred. Do not add browsers by default: when scope is Unknown, card-number and OTP fields that are not marked as passwords may be admitted by the app-level rule. The decision log contains only its reason code and allowed/denied result; it never contains text or host/window/document identity.
+
+**Alternatives rejected.** UI Automation `IsPassword` alone is deferred because it does not identify other sensitive non-password content and offers no authorized write path. TSF-only scope gating is insufficient for hosts returning E_FAIL, while treating all Unknown fields as allowed would be unsafe; the explicit host allowlist is the narrow override. No IPC, UIA fallback, key sink, keyboard hook, edit session, or external prediction was added.
+
+**Consequences and limits.** Default state is paused and the allowlist contains only Notepad. File-name allowlisting is user approval of an application identity by name, not a guarantee about an individual field; Unknown is allowed only after that explicit app-level choice and with the separate diagnostic opt-in. The user toggle remains operable if hotkey registration fails, and the UI reports that failure. Settings take effect on the next TSF edit notification. This implements only bounded diagnostic context reads; it does not enable production prediction or editing in external apps. Owner-reported elevated registration is documented separately and has not been independently reproduced.

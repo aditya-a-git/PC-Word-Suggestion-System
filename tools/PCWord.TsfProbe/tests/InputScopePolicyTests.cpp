@@ -1,15 +1,14 @@
 #include "../InputScopePolicy.h"
 
-using pcword::tsf::IsSensitiveInputScope;
+using namespace pcword::input;
 
-static_assert(IsSensitiveInputScope(IS_PASSWORD), "Password scope is sensitive.");
-static_assert(IsSensitiveInputScope(IS_NUMERICPIN), "Numeric PIN scope is sensitive.");
-static_assert(IsSensitiveInputScope(IS_ALPHANUMERICPIN), "Alphanumeric PIN scope is sensitive.");
-static_assert(IsSensitiveInputScope(IS_NUMERICPASSWORD), "Numeric password scope is sensitive.");
-static_assert(IsSensitiveInputScope(IS_ALPHANUMERICPASSWORD), "Alphanumeric password scope is sensitive.");
-static_assert(IsSensitiveInputScope(IS_PRIVATE), "Private scope is sensitive.");
-
-static_assert(!IsSensitiveInputScope(IS_DEFAULT), "Default scope is not explicitly sensitive.");
+static_assert(IsSensitiveScope(PasswordScope), "Password scope is sensitive.");
+static_assert(IsSensitiveScope(NumericPasswordScope), "Numeric password scope is sensitive.");
+static_assert(IsSensitiveScope(NumericPinScope), "Numeric PIN scope is sensitive.");
+static_assert(IsSensitiveScope(AlphanumericPinScope), "Alphanumeric PIN scope is sensitive.");
+static_assert(IsSensitiveScope(AlphanumericPinSetScope), "Alphanumeric PIN set scope is sensitive.");
+static_assert(IsSensitiveScope(PrivateScope), "Private scope is sensitive.");
+static_assert(!IsSensitiveScope(IS_TEXT), "Ordinary text scope is not explicitly sensitive.");
 
 int main()
 {

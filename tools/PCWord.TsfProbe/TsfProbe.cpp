@@ -9,6 +9,7 @@
 #include <new>
 #include <string>
 #include <vector>
+#include <cwchar>
 
 #pragma comment(lib, "ole32.lib")
 #pragma comment(lib, "advapi32.lib")
@@ -30,6 +31,118 @@ static std::atomic<long> g_objects{ 0 };
 static std::atomic<long> g_locks{ 0 };
 static constexpr LONG kBeforeLimit = 128;
 static constexpr LONG kAfterLimit = 32;
+static constexpr wchar_t kSettingsPath[] = L"Software\\PCWord";
+static void Trace(const wchar_t* message);
+
+struct ExternalSettings
+{
+    bool valid = false;
+    bool enabled = false;
+    std::vector<std::wstring> allowlist;
+};
+
+static bool ReadExternalSettings(ExternalSettings* settings)
+{
+    if (!settings) return false;
+    *settings = {};
+    HKEY key = nullptr;
+    LONG status = RegOpenKeyExW(HKEY_CURRENT_USER, kSettingsPath, 0, KEY_QUERY_VALUE, &key);
+    if (status != ERROR_SUCCESS) return false;
+
+    DWORD enabled = 0, type = 0, size = sizeof(enabled);
+    status = RegQueryValueExW(key, L"Enabled", nullptr, &type,
+        reinterpret_cast<BYTE*>(&enabled), &size);
+    if (status != ERROR_SUCCESS || type != REG_DWORD || size != sizeof(enabled) || enabled > 1)
+    {
+        RegCloseKey(key);
+        return false;
+    }
+
+    type = 0;
+    size = 0;
+    status = RegQueryValueExW(key, L"Allowlist", nullptr, &type, nullptr, &size);
+    if (status != ERROR_SUCCESS || type != REG_MULTI_SZ ||
+        size < 2 * sizeof(wchar_t) || size > 8192 || size % sizeof(wchar_t) != 0)
+    {
+        RegCloseKey(key);
+        return false;
+    }
+    std::vector<wchar_t> raw(size / sizeof(wchar_t));
+    status = RegQueryValueExW(key, L"Allowlist", nullptr, &type,
+        reinterpret_cast<BYTE*>(raw.data()), &size);
+    RegCloseKey(key);
+    if (status != ERROR_SUCCESS || type != REG_MULTI_SZ ||
+        size < 2 * sizeof(wchar_t) || raw[raw.size() - 1] != L'\0' ||
+        raw[raw.size() - 2] != L'\0')
+        return false;
+
+    const size_t count = size / sizeof(wchar_t);
+    if (count == 2 && raw[0] == L'\0' && raw[1] == L'\0')
+    {
+        settings->valid = true;
+        settings->enabled = enabled == 1;
+        return true;
+    }
+    size_t start = 0;
+    while (start < count - 1 && raw[start] != L'\0')
+    {
+        size_t end = start;
+        while (end < count && raw[end] != L'\0') ++end;
+        if (end == count) return false;
+        std::wstring entry(raw.data() + start, end - start);
+        if (!pcword::input::IsValidExecutableName(entry)) return false;
+        settings->allowlist.push_back(std::move(entry));
+        start = end + 1;
+    }
+    if (start != count - 1 || raw[start] != L'\0') return false;
+
+    settings->valid = true;
+    settings->enabled = enabled == 1;
+    return true;
+}
+
+static std::wstring GetHostExecutableName()
+{
+    std::vector<wchar_t> path(512);
+    for (;;)
+    {
+        DWORD length = GetModuleFileNameW(nullptr, path.data(), static_cast<DWORD>(path.size()));
+        if (length == 0) return {};
+        if (length < path.size() - 1)
+        {
+            std::wstring fullPath(path.data(), length);
+            size_t separator = fullPath.find_last_of(L"\\/");
+            return separator == std::wstring::npos ? fullPath : fullPath.substr(separator + 1);
+        }
+        if (path.size() >= 32768) return {};
+        path.resize(std::min<size_t>(path.size() * 2, 32768));
+    }
+}
+
+static const wchar_t* DecisionName(pcword::input::SafetyDecision decision)
+{
+    using pcword::input::SafetyDecision;
+    switch (decision)
+    {
+    case SafetyDecision::DeniedInvalidSettings: return L"invalid-settings";
+    case SafetyDecision::DeniedPaused: return L"paused";
+    case SafetyDecision::DeniedSensitive: return L"sensitive";
+    case SafetyDecision::DeniedStructuralState: return L"structural-state";
+    case SafetyDecision::DeniedHostNotAllowlisted: return L"host-not-allowlisted";
+    case SafetyDecision::DeniedDiagnosticOptIn: return L"diagnostic-opt-in-required";
+    case SafetyDecision::AllowedByHostPolicy: return L"allowed-by-host-policy";
+    case SafetyDecision::AllowedByDeclaredScope: return L"allowed-by-declared-scope";
+    default: return L"invalid-decision";
+    }
+}
+
+static void TraceDecision(pcword::input::SafetyDecision decision)
+{
+    wchar_t message[128]{};
+    swprintf_s(message, L"decision=%s allowed=%s", DecisionName(decision),
+        pcword::input::IsAllowed(decision) ? L"yes" : L"no");
+    Trace(message);
+}
 
 static void Trace(const wchar_t* message)
 {
@@ -352,6 +465,17 @@ public:
         ITfEditRecord*) override
     {
         if (!context) return E_INVALIDARG;
+        ExternalSettings settings;
+        const bool settingsValid = ReadExternalSettings(&settings);
+        if (!settingsValid || !settings.enabled)
+        {
+            const auto decision = pcword::input::DecideContextRead({
+                settingsValid, settings.enabled, pcword::input::FieldClassification::Unknown,
+                false, false, false, false, false, false });
+            TraceDecision(decision);
+            return S_OK;
+        }
+
         // A collapsed range and a read-only edit cookie are used only inside TSF's
         // permitted callback. No text is copied to logs, files, or external processes.
         TF_SELECTION selection{};
@@ -360,66 +484,46 @@ public:
             &selection, &fetched);
         if (hr != S_OK || fetched != 1 || !selection.range)
         {
-            if (hr != S_OK)
-                TraceHr(L"ITfContext::GetSelection", hr);
-            else
-                Trace(L"ITfContext::GetSelection returned no single caret range.");
             if (selection.range) selection.range->Release();
+            TraceDecision(pcword::input::SafetyDecision::DeniedStructuralState);
             return S_OK;
         }
 
         BOOL isEmpty = FALSE;
         hr = selection.range->IsEmpty(cookie, &isEmpty);
-        if (hr != S_OK || !isEmpty)
-        {
-            if (hr != S_OK)
-                TraceHr(L"ITfRange::IsEmpty", hr);
-            else
-                Trace(L"ITfRange::IsEmpty reported a non-collapsed selection; context skipped.");
-            selection.range->Release();
-            return S_OK;
-        }
-
         const auto inputScopeStatus = GetInputScopeStatus(context, cookie, selection.range);
-        const bool allowRead = pcword::input::CanReadContext(
-            IsContextReadOptedIn(), inputScopeStatus);
         LONG beforeCount = -1, afterCount = -1;
         RECT caretRect{};
         bool caretRectAvailable = false;
+        bool compositionStateKnown = false;
+        bool composing = IsComposing(context, &compositionStateKnown) ||
+            selection.style.fInterimChar != FALSE;
+        bool structuralStateAvailable = context == m_context && hr == S_OK &&
+            compositionStateKnown && selection.range;
+        const bool collapsedSelection = hr == S_OK && isEmpty != FALSE;
 
         ITfContextView* view = nullptr;
-        hr = context->GetActiveView(&view);
-        if (hr == S_OK && view)
+        HRESULT viewHr = context->GetActiveView(&view);
+        if (viewHr == S_OK && view)
         {
             BOOL clipped = FALSE;
-            hr = view->GetTextExt(cookie, selection.range, &caretRect, &clipped);
-            caretRectAvailable = hr == S_OK;
-            if (!caretRectAvailable)
-                TraceHr(L"ITfContextView::GetTextExt", hr);
+            viewHr = view->GetTextExt(cookie, selection.range, &caretRect, &clipped);
+            caretRectAvailable = viewHr == S_OK && clipped == FALSE;
             view->Release();
         }
-        else
-        {
-            TraceHr(L"ITfContext::GetActiveView", hr);
-            if (view) view->Release();
-        }
+        else if (view) view->Release();
 
+        const bool hostAllowed = pcword::input::IsHostAllowlisted(
+            settings.allowlist, GetHostExecutableName());
+        const auto decision = pcword::input::DecideContextRead({
+            settingsValid, settings.enabled, inputScopeStatus, hostAllowed,
+            context == m_context, collapsedSelection, composing,
+            structuralStateAvailable && caretRectAvailable, IsContextReadOptedIn() });
+
+        TraceDecision(decision);
+        const bool allowRead = pcword::input::IsAllowed(decision);
         if (allowRead)
             ReadBoundedLengths(cookie, selection.range, &beforeCount, &afterCount);
-
-        wchar_t summary[256]{};
-        const wchar_t* scopeLabel = inputScopeStatus == pcword::input::FieldClassification::Sensitive
-            ? L"sensitive"
-            : (inputScopeStatus == pcword::input::FieldClassification::DeclaredNonSensitive
-                ? L"declared-non-sensitive" : L"unknown");
-        swprintf_s(summary, L"Edit event: input-scope=%s opt-in=%s selection=collapsed "
-            L"context-read=%s before=%ld after=%ld caret-rect=%s rect=(%ld,%ld,%ld,%ld)",
-            scopeLabel,
-            IsContextReadOptedIn() ? L"yes" : L"no",
-            allowRead ? L"attempted" : L"skipped",
-            beforeCount, afterCount, caretRectAvailable ? L"yes" : L"no",
-            caretRect.left, caretRect.top, caretRect.right, caretRect.bottom);
-        Trace(summary);
         selection.range->Release();
         return S_OK;
     }
@@ -488,6 +592,38 @@ private:
         return length == 1 && value[0] == L'1';
     }
 
+    static bool IsComposing(ITfContext* context, bool* stateKnown)
+    {
+        if (stateKnown) *stateKnown = false;
+        ITfContextComposition* composition = nullptr;
+        HRESULT hr = context->QueryInterface(IID_ITfContextComposition,
+            reinterpret_cast<void**>(&composition));
+        if (hr != S_OK || !composition)
+        {
+            if (composition) composition->Release();
+            return false;
+        }
+        IEnumITfCompositionView* enumerator = nullptr;
+        hr = composition->EnumCompositions(&enumerator);
+        composition->Release();
+        if (hr != S_OK || !enumerator)
+        {
+            if (enumerator) enumerator->Release();
+            return false;
+        }
+        ITfCompositionView* view = nullptr;
+        ULONG fetched = 0;
+        hr = enumerator->Next(1, &view, &fetched);
+        enumerator->Release();
+        if (view) view->Release();
+        if (hr != S_OK && hr != S_FALSE)
+        {
+            return false;
+        }
+        if (stateKnown) *stateKnown = true;
+        return fetched != 0;
+    }
+
     // InputScope is a host hint. It is used only after explicit opt-in and never
     // read as proof that user-provided content is inherently non-sensitive.
     static pcword::input::FieldClassification GetInputScopeStatus(
@@ -497,7 +633,6 @@ private:
         HRESULT hr = context->GetAppProperty(PCWORD_GUID_PROP_INPUTSCOPE, &property);
         if (hr != S_OK || !property)
         {
-            TraceHr(L"ITfContext::GetAppProperty(GUID_PROP_INPUTSCOPE)", hr);
             if (property) property->Release();
             return pcword::input::FieldClassification::Unknown;
         }
@@ -510,15 +645,9 @@ private:
         {
             // S_FALSE means no unique property value covers this range; failures
             // such as E_FAIL identify GetValue itself as the failing call.
-            TraceHr(L"ITfReadOnlyProperty::GetValue(GUID_PROP_INPUTSCOPE)", hr);
             VariantClear(&value);
             return pcword::input::FieldClassification::Unknown;
         }
-
-        wchar_t message[128]{};
-        swprintf_s(message, L"InputScope VARIANT type=%u",
-            static_cast<unsigned int>(value.vt));
-        Trace(message);
 
         pcword::input::FieldClassification classification =
             pcword::input::FieldClassification::Unknown;
@@ -529,7 +658,8 @@ private:
                 reinterpret_cast<void**>(&inputScope));
             if (hr != S_OK || !inputScope)
             {
-                TraceHr(L"IUnknown::QueryInterface(IID_ITfInputScope)", hr);
+                // Unknown property shape or interface remains Unknown; the policy
+                // decision applies the allowlist and all remaining gates.
             }
             else
             {
@@ -538,28 +668,21 @@ private:
                 hr = inputScope->GetInputScopes(&scopes, &count);
                 if (hr != S_OK)
                 {
-                    TraceHr(L"ITfInputScope::GetInputScopes", hr);
+                    // Provider failure remains Unknown for the policy decision.
                 }
                 else
                 {
-                    swprintf_s(message, L"InputScope count=%u",
-                        static_cast<unsigned int>(count));
-                    Trace(message);
                     classification = pcword::input::ClassifyScopes(scopes, count);
                 }
                 if (scopes) CoTaskMemFree(scopes);
                 inputScope->Release();
             }
         }
-        else
-        {
-            Trace(L"GUID_PROP_INPUTSCOPE value is not a VT_UNKNOWN interface.");
-        }
+        // Non-interface values are treated as Unknown.
 
         hr = VariantClear(&value);
         if (FAILED(hr))
         {
-            TraceHr(L"VariantClear(GUID_PROP_INPUTSCOPE)", hr);
             classification = pcword::input::FieldClassification::Unknown;
         }
         return classification;

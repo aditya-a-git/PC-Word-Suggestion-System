@@ -12,6 +12,7 @@ using pcword::input::NumericPasswordScope;
 using pcword::input::NumericPinScope;
 using pcword::input::AlphanumericPinScope;
 using pcword::input::AlphanumericPinSetScope;
+using pcword::input::IsSensitiveScope;
 
 int main()
 {
@@ -36,8 +37,10 @@ int main()
     };
     for (InputScope scope : sensitiveScopes)
     {
+        REQUIRE(IsSensitiveScope(scope));
         const InputScope values[] = { IS_TEXT, scope };
         REQUIRE(ClassifyScopes(values, 2) == FieldClassification::Sensitive);
     }
+    REQUIRE(!IsSensitiveScope(IS_TEXT));
     return 0;
 }

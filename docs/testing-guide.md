@@ -10,7 +10,9 @@ dotnet build .\PCWord.sln --configuration Release --no-restore
 dotnet test .\PCWord.sln --configuration Release --no-restore --verbosity minimal
 ```
 
-On 2026-10-27, `dotnet build PCWord.sln -c Release` passed with zero warnings/errors, and `dotnet test PCWord.sln -c Release --no-build` passed 126/126 managed tests. Existing cases cover rapid consecutive versions/fields, focus and field invalidation, disable/re-enable freshness, sensitive/unavailable contexts, empty-result clearing, obsolete candidate rejection, and metrics with no text-shaped API/storage. These are controlled-editor contracts, not external-app integration tests.
+On 2026-10-27, `dotnet build PCWord.sln -c Release` passed with zero warnings/errors, and `dotnet test PCWord.sln -c Release --no-build` passed 126/126 managed tests for Stage 4. These are controlled-editor contracts, not external-app integration tests.
+
+On 2026-10-28, `dotnet restore PCWord.sln`, `dotnet build PCWord.sln -c Release --no-restore`, and `dotnet test PCWord.sln -c Release --no-build` passed; build had zero warnings/errors and 139/139 managed tests passed. Added tests cover default-paused settings, allowlist validation and matching, and visible hotkey-registration failure state. Unit tests do not exercise the HKCU adapter or actual RegisterHotKey registration.
 
 ## Repeatable benchmark
 
@@ -30,7 +32,9 @@ cmake --build .\tools\PCWord.TsfProbe\build-validation --config Release
 ctest --test-dir .\tools\PCWord.TsfProbe\build-validation -C Release --output-on-failure
 ```
 
-On 2026-10-27, CMake configured and built `PCWordTsfProbe.dll` with Visual Studio 18 / MSVC 19.51 and Windows SDK 10.0.26100; CTest passed 2/2 policy executables. They do not activate TSF or prove provider behavior. No TSF profile was registered or activated in that run.
+On 2026-10-28, CMake configured and built the x64 `PCWordTsfProbe.dll` in `tools/PCWord.TsfProbe/build-validation`; CTest passed 2/2. The full decision-matrix test exercises settings validity, paused state, all classifications, host allowlisting, every structural gate, and diagnostic opt-in. Filename cases cover case variants, spoofed prefix/suffix, separators, empty, ASCII/Unicode whitespace, and wildcards. Scope tests pin each sensitive classification already recognized by `InputScopePolicy.h`. These tests do not activate TSF or prove provider behavior. The existing `tools/PCWord.TsfProbe/build/` DLL was left on disk because it may be registered and the linker reported it locked.
+
+Tracked `build/` and `tools/PCWord.TsfProbe/build/` outputs were removed from the Git index with `git rm --cached`; files were not deleted from disk.
 
 ## Runtime status and privacy inspection
 
