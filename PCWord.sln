@@ -23,6 +23,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "PCWord.Benchmark", "tools\P
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "PCWord.Evaluation", "tools\PCWord.Evaluation\PCWord.Evaluation.csproj", "{97EC27B8-C591-4550-A6A8-1125F4047360}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "PCWord.CompatReport", "tools\PCWord.CompatReport\PCWord.CompatReport.csproj", "{4C72FA05-7449-44D7-9FBB-A28DB805D0C4}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -113,6 +115,10 @@ Global
 		{97EC27B8-C591-4550-A6A8-1125F4047360}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{97EC27B8-C591-4550-A6A8-1125F4047360}.Release|Any CPU.Build.0 = Release|Any CPU
 		{7083681D-5B16-476B-97C5-1C10B5D32DA3}.Release|x86.Build.0 = Release|Any CPU
+			{4C72FA05-7449-44D7-9FBB-A28DB805D0C4}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{4C72FA05-7449-44D7-9FBB-A28DB805D0C4}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{4C72FA05-7449-44D7-9FBB-A28DB805D0C4}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{4C72FA05-7449-44D7-9FBB-A28DB805D0C4}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

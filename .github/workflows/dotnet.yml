@@ -35,6 +35,9 @@ jobs:
       - name: Build native TSF probe
         run: cmake --build .\tools\PCWord.TsfProbe\build-ci --config Release
 
+      - name: Run native policy tests
+        run: ctest --test-dir .\\tools\\PCWord.TsfProbe\\build-ci -C Release --output-on-failure
+
       - name: Publish native TSF probe artifact
         uses: actions/upload-artifact@v4
         with:

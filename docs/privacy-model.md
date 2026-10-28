@@ -33,3 +33,8 @@ No global keyboard hook, raw key event recorder, text telemetry, personalization
 ## Stage 5 local n-gram model
 
 The optional next-word model is loaded only from `%LOCALAPPDATA%\PCWord\ngram-model.json`. It is built offline by the separate evaluator from local split files; prediction does not make network requests. The application holds the bounded preceding context and up to three candidates transiently, then uses the same version/field-checked adapter edit path as dictionary completion. Model vocabulary and counts are persisted in that local model file; no document history or accepted-text personalization is recorded. Train only from the documented public dataset, not personal documents. The evaluator prints aggregate counts and timings and never prints corpus lines, prefixes, or predictions. Source inspection does not replace runtime network monitoring.
+
+
+## Compatibility diagnostic logs
+
+The TSF feasibility probe emits only fixed, numeric/status fields needed for compatibility observation: process ID is supplied by DebugView, selection/caret availability, bounded character counts, fixed InputScope HRESULT/stage, fixed classification and policy reason. It never logs typed text, prefixes, candidates, window titles, application names or field labels. DebugView itself captures unrelated processes, so raw captures may contain unrelated sensitive metadata: keep them local, ignored, and delete them after producing a summary. The report tool retains only aggregate counts and emits a Markdown row; it must never echo raw lines or unrelated process output. No raw logs belong in Git or documentation.

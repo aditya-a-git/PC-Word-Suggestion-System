@@ -47,3 +47,10 @@ The current dictionary ranker runs synchronously over the local in-memory index,
 ## Safety-policy verification run (2026-10-28)
 
 The managed Release build passed with zero warnings/errors and 139/139 managed tests passed. The native x64 probe built successfully in `tools/PCWord.TsfProbe/build-validation`; CTest passed 2/2, including the full decision matrix, exact filename matching, and sensitive-scope regression tests. Tracked `build/` and `tools/PCWord.TsfProbe/build/` outputs were removed from the Git index only; local files were preserved because the existing DLL may be registered/locked. The new registry policy was not runtime-tested inside an activated TSF host, and no external-app production behavior is claimed as verified.
+
+
+## Stage 6 compatibility reporting (observation only)
+
+The TSF probe emits fixed status metadata for activation, focus and edit notifications, including selection/caret availability, bounded before/after character counts, InputScope stage/HRESULT, classification and policy decision. It does not emit text, candidates, window titles or field labels, and it does not insert text or display a popup. The new `PCWord.CompatReport` CLI parses only the probe marker records and generates aggregate Markdown rows grouped by process ID. Noise from other processes is not included in output. Raw DebugView logs must remain local and ignored.
+
+The parser and report are source changes in this commit; this direct GitHub edit was not built or run here. No TSF host session was performed. Owner-reported Notepad/browser observations remain undated and lack exact app versions and saved logs. All other external app/version/field rows remain Untested. No production external-app support is claimed.

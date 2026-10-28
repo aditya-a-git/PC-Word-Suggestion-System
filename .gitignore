@@ -12,3 +12,6 @@ TestResults/
 **/build-*/
 build/
 tools/PCWord.TsfProbe/build/
+
+# Locally captured DebugView logs can contain unrelated process output.
+tools/PCWord.CompatReport/logs/

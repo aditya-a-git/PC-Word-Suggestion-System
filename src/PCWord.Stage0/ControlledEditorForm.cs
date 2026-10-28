@@ -269,7 +269,7 @@ internal sealed class ControlledEditorForm : Form
                 : "no selection";
             bool eligible = snapshot is { ContextAvailable: true, HasFocus: true,
                 Sensitivity: InputFieldSensitivity.KnownSafe, SelectionLength: 0, IsComposing: false };
-report.Text = $"Focus: {focus} | Caret: {caret} | {selected} | Eligible: {eligible} | Context: {(snapshot?.ContextAvailable == true ? "bounded" : "unavailable")}\nVersion: {snapshot?.Version.ToString() ?? "n/a"} | Suggestions enabled: {enabled.Checked} | Sensitive: {sensitive.Checked} | Composition: {snapshot?.IsComposing == true}\nCtrl+Space / Ctrl+1–3 accepts; Esc dismisses. Owned editor only; external application integration is disabled.";
+report.Text = $"Focus: {focus} | Caret: {caret} | {selected} | Eligible: {eligible} | Context: {(snapshot?.ContextAvailable == true ? "bounded" : "unavailable")}\nVersion: {snapshot?.Version.ToString() ?? "n/a"} | Suggestions enabled: {enabled.Checked} | Sensitive: {sensitive.Checked} | Composition: {snapshot?.IsComposing == true}\nCtrl+Space / Ctrl+1–3 accepts; Esc dismisses. Owned editor only; external apps unsupported. TSF probe is diagnostic only; no external insertion or popup.";
         }
         finally { updating = false; }
     }

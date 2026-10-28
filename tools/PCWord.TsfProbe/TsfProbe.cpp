@@ -136,11 +136,39 @@ static const wchar_t* DecisionName(pcword::input::SafetyDecision decision)
     }
 }
 
+static const wchar_t* ClassificationName(pcword::input::FieldClassification classification)
+{
+    using pcword::input::FieldClassification;
+    switch (classification)
+    {
+    case FieldClassification::DeclaredNonSensitive: return L"safe";
+    case FieldClassification::Sensitive: return L"sensitive";
+    default: return L"unknown";
+    }
+}
+
 static void TraceDecision(pcword::input::SafetyDecision decision)
 {
     wchar_t message[128]{};
     swprintf_s(message, L"decision=%s allowed=%s", DecisionName(decision),
         pcword::input::IsAllowed(decision) ? L"yes" : L"no");
+    Trace(message);
+}
+
+static void TraceEditEvent(bool selectionKnown, bool collapsedSelection,
+    bool caretRectAvailable, LONG beforeCount, LONG afterCount,
+    const wchar_t* inputScopeStage, HRESULT inputScopeHr,
+    pcword::input::FieldClassification classification,
+    pcword::input::SafetyDecision decision)
+{
+    wchar_t message[512]{};
+    swprintf_s(message,
+        L"edit-event selection-collapsed=%s caret-rect=%s before-count=%ld after-count=%ld inputscope-stage=%s inputscope-hr=0x%08X classification=%s decision=%s allowed=%s",
+        selectionKnown ? (collapsedSelection ? L"yes" : L"no") : L"unknown",
+        caretRectAvailable ? L"yes" : L"no", beforeCount, afterCount,
+        inputScopeStage ? inputScopeStage : L"not-read",
+        static_cast<unsigned int>(inputScopeHr), ClassificationName(classification),
+        DecisionName(decision), pcword::input::IsAllowed(decision) ? L"yes" : L"no");
     Trace(message);
 }
 
@@ -472,7 +500,8 @@ public:
             const auto decision = pcword::input::DecideContextRead({
                 settingsValid, settings.enabled, pcword::input::FieldClassification::Unknown,
                 false, false, false, false, false, false });
-            TraceDecision(decision);
+            TraceEditEvent(false, false, false, -1, -1, L"not-read", E_FAIL,
+                pcword::input::FieldClassification::Unknown, decision);
             return S_OK;
         }
 
@@ -485,13 +514,18 @@ public:
         if (hr != S_OK || fetched != 1 || !selection.range)
         {
             if (selection.range) selection.range->Release();
-            TraceDecision(pcword::input::SafetyDecision::DeniedStructuralState);
+            const auto decision = pcword::input::SafetyDecision::DeniedStructuralState;
+            TraceEditEvent(false, false, false, -1, -1, L"not-read", E_FAIL,
+                pcword::input::FieldClassification::Unknown, decision);
             return S_OK;
         }
 
         BOOL isEmpty = FALSE;
         hr = selection.range->IsEmpty(cookie, &isEmpty);
-        const auto inputScopeStatus = GetInputScopeStatus(context, cookie, selection.range);
+        const wchar_t* inputScopeStage = L"not-read";
+        HRESULT inputScopeHr = E_FAIL;
+        const auto inputScopeStatus = GetInputScopeStatus(context, cookie, selection.range,
+            &inputScopeStage, &inputScopeHr);
         LONG beforeCount = -1, afterCount = -1;
         RECT caretRect{};
         bool caretRectAvailable = false;
@@ -520,10 +554,11 @@ public:
             context == m_context, collapsedSelection, composing,
             structuralStateAvailable && caretRectAvailable, IsContextReadOptedIn() });
 
-        TraceDecision(decision);
         const bool allowRead = pcword::input::IsAllowed(decision);
         if (allowRead)
             ReadBoundedLengths(cookie, selection.range, &beforeCount, &afterCount);
+        TraceEditEvent(hr == S_OK, collapsedSelection, caretRectAvailable,
+            beforeCount, afterCount, inputScopeStage, inputScopeHr, inputScopeStatus, decision);
         selection.range->Release();
         return S_OK;
     }
@@ -627,24 +662,27 @@ private:
     // InputScope is a host hint. It is used only after explicit opt-in and never
     // read as proof that user-provided content is inherently non-sensitive.
     static pcword::input::FieldClassification GetInputScopeStatus(
-        ITfContext* context, TfEditCookie cookie, ITfRange* range)
+        ITfContext* context, TfEditCookie cookie, ITfRange* range,
+        const wchar_t** stage, HRESULT* status)
     {
+        *stage = L"get-app-property";
         ITfReadOnlyProperty* property = nullptr;
         HRESULT hr = context->GetAppProperty(PCWORD_GUID_PROP_INPUTSCOPE, &property);
+        *status = hr;
         if (hr != S_OK || !property)
         {
             if (property) property->Release();
             return pcword::input::FieldClassification::Unknown;
         }
 
+        *stage = L"get-value";
         VARIANT value;
         VariantInit(&value);
         hr = property->GetValue(cookie, range, &value);
         property->Release();
+        *status = hr;
         if (hr != S_OK)
         {
-            // S_FALSE means no unique property value covers this range; failures
-            // such as E_FAIL identify GetValue itself as the failing call.
             VariantClear(&value);
             return pcword::input::FieldClassification::Unknown;
         }
@@ -653,36 +691,30 @@ private:
             pcword::input::FieldClassification::Unknown;
         if (value.vt == VT_UNKNOWN && value.punkVal)
         {
+            *stage = L"query-interface";
             ITfInputScope* inputScope = nullptr;
             hr = value.punkVal->QueryInterface(IID_ITfInputScope,
                 reinterpret_cast<void**>(&inputScope));
-            if (hr != S_OK || !inputScope)
+            *status = hr;
+            if (hr == S_OK && inputScope)
             {
-                // Unknown property shape or interface remains Unknown; the policy
-                // decision applies the allowlist and all remaining gates.
-            }
-            else
-            {
+                *stage = L"get-input-scopes";
                 InputScope* scopes = nullptr;
                 UINT count = 0;
                 hr = inputScope->GetInputScopes(&scopes, &count);
-                if (hr != S_OK)
-                {
-                    // Provider failure remains Unknown for the policy decision.
-                }
-                else
-                {
+                *status = hr;
+                if (hr == S_OK)
                     classification = pcword::input::ClassifyScopes(scopes, count);
-                }
                 if (scopes) CoTaskMemFree(scopes);
                 inputScope->Release();
             }
         }
-        // Non-interface values are treated as Unknown.
 
+        *stage = L"complete";
         hr = VariantClear(&value);
         if (FAILED(hr))
         {
+            *status = hr;
             classification = pcword::input::FieldClassification::Unknown;
         }
         return classification;

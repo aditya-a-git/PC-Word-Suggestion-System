@@ -35,3 +35,8 @@ The existing sensitive signal is the TSF InputScope array returned by `ITfInputS
 ## Scope of this milestone
 
 The policy implementation and tests do not establish host runtime behavior. The native DLL and CTest targets are built on Windows, but the new registry policy has not been runtime-tested inside an activated TSF host. Owner-reported activation/sensitivity observations are identified as such in the compatibility matrix. Registration requiring elevation is owner-reported, not independently verified here.
+
+
+## Status-only event trace
+
+Each TSF edit notification emits one fixed `edit-event` status record, including denied/unavailable states. It reports only collapsed-selection status, caret-rectangle availability, bounded before/after character counts (or -1), InputScope stage/HRESULT, fixed classification, and policy reason. Counts are read only after the existing allowlist, opt-in, sensitivity and structural gates allow a diagnostic read. No text is retained or logged. DebugView may interleave its two OutputDebugString calls and includes unrelated process output; use `PCWord.CompatReport` to produce aggregate rows only.

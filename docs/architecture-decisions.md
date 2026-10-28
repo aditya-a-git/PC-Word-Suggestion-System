@@ -114,3 +114,14 @@ The optional model is loaded from `%LOCALAPPDATA%\PCWord\ngram-model.json`. Cand
 **Data/license.** Use only the pinned public WikiText split described in `data/README.md`; the card metadata has a license conflict, so neither corpus nor derived model is redistributed. Validation chooses only order/backoff; test is evaluated once. The public data could not be downloaded in the current implementation environment, so no model-quality claim is made.
 
 **Consequences.** Prediction stays local/offline, text-free aggregate instrumentation is reused, and the existing controlled editor is the only supported edit surface. Wikipedia prose may not represent conversational, technical, or personal writing. Cross-application support remains unsupported. Stage 5 exit criteria stay open until fixed-split results and Windows UI verification are recorded.
+
+
+## ADR-0010: Observation-only compatibility report (2026-10-28)
+
+**Decision:** Add fixed status-only TSF probe events and an aggregate DebugView parser. Do not add application-specific adapters.
+
+**Evidence:** The only host observations supplied for this work are owner reports without recorded dates, exact application versions, field categories or saved logs. They do not establish a repeatable host-specific requirement. The current TSF component has no production IPC/edit session or external popup.
+
+**Alternatives:** Add a target-specific adapter after a reproducible test identifies a concrete API gap; continue diagnostic observation; or pursue a production TSF edit-session design as separate work once policy and acceptance semantics are demonstrated. Until then, all foreign application prediction and edits remain unsupported.
+
+**Cost and constraints:** Report rows are aggregate probe evidence only. They cannot establish text privacy, safe editing, application-wide compatibility or popup behavior. Captures may contain unrelated DebugView output and must remain local/ignored. The parser discards all non-probe records and emits no raw log content.

@@ -61,3 +61,71 @@ dotnet run --project .\tools\PCWord.Evaluation\PCWord.Evaluation.csproj --config
 Supply three distinct UTF-8 files converted from the pinned Parquet splits; see `data/README.md`. The command selects order/backoff on validation, evaluates test once, and prints aggregate quality and resource metrics only. The synthetic manager-plus-model request timing excludes the WinForms adapter/UI and edit acceptance. The model contains corpus-derived vocabulary/counts; keep it local and do not train on private documents. The fixed-corpus run was blocked here by reset download connections.
 
 The controlled-editor form loads `%LOCALAPPDATA%\PCWord\ngram-model.json` on launch if present. Manual check (not performed here): place a locally generated model there, open the WinForms editor, type synthetic non-sensitive context ending at a word boundary, verify up to three candidates, accept with Ctrl+Space, and confirm insertion preserves punctuation/trailing spaces. Then test partial words, selection, sensitive toggle, pause/resume, caret/focus changes, and that stale suggestions disappear. This remains unverified; arbitrary external applications are unsupported.
+
+
+## Stage 6 compatibility observation procedure
+
+Run only in a disposable Windows account or VM with synthetic text. Never type or record a real password, private message, customer data, or production command. Close sensitive applications first.
+
+1. Build the probe on the test machine:
+   ```powershell
+   cmake -S .\tools\PCWord.TsfProbe -B .\tools\PCWord.TsfProbe\build-compat -A x64
+   cmake --build .\tools\PCWord.TsfProbe\build-compat --config Release
+   ```
+2. In an elevated PowerShell, register the DLL once for the same test user. Elevation is an owner-reported requirement on one machine, not verified generally:
+   ```powershell
+   $dll = (Resolve-Path '.\tools\PCWord.TsfProbe\build-compat\Release\PCWordTsfProbe.dll').Path
+   & "$env:WINDIR\System32\regsvr32.exe" "$dll"
+   ```
+   This is per-user registration; do not use machine-wide registration. In Windows keyboard/input settings switch to the PCWord TSF probe profile for pass 1.
+3. Start DebugView as the same user with **Capture Win32** enabled. Save the capture only under `tools/PCWord.CompatReport/logs/`, which is ignored by Git.
+4. For pass 1, ensure `PCWORD_TSF_ALLOW_CONTEXT_READ` is unset. In the same user's registry, explicitly enable the diagnostic policy and allow only the executable under test. Example for Notepad:
+   ```powershell
+   New-Item -Path 'HKCU:\Software\PCWord' -Force | Out-Null
+   New-ItemProperty -Path 'HKCU:\Software\PCWord' -Name Enabled -PropertyType DWord -Value 1 -Force | Out-Null
+   New-ItemProperty -Path 'HKCU:\Software\PCWord' -Name Allowlist -PropertyType MultiString -Value @('notepad.exe') -Force | Out-Null
+   ```
+   Change the exact executable name for each target. The environment opt-in alone does not authorize reads; both settings and structural/sensitivity gates are required.
+5. For each application/version and each field category separately, use the action script below. Do not copy any typed text into logs, notes, screenshots or records.
+6. Repeat with `PCWORD_TSF_ALLOW_CONTEXT_READ=1` set before launching the host for pass 2. Keep the same enabled policy and exact host allowlist. Re-launch the host after changing its environment.
+7. Use the report tool and paste only its generated aggregate Markdown rows into the matrix:
+   ```powershell
+   dotnet run --project .\tools\PCWord.CompatReport\PCWord.CompatReport.csproj --configuration Release -- .\tools\PCWord.CompatReport\logs\capture.txt "App name" "Exact version" "Field category"
+   ```
+   The tool prints aggregate probe metadata only. Never attach or commit the raw capture.
+8. Switch back to the previous keyboard, disable the probe policy, close test apps, and unregister the same DLL under the same account:
+   ```powershell
+   & "$env:WINDIR\System32\regsvr32.exe" /u "$dll"
+   ```
+   Restore any policy values changed for the test and delete the local raw capture when no longer needed.
+
+### Fixed action script per field
+
+For each non-password field, in order: type an ordinary synthetic word at a normal pace; type another synthetic string rapidly; backspace several characters; select a portion and replace it with synthetic text; type punctuation; move focus to a second field and back. For a password field, focus only and verify status; never type a password, even a real one. Capture only the probe's activation, focus-change and edit-event status records and the generated counts. Records contain selection/caret availability, bounded character counts, fixed InputScope stage/HRESULT, classification, decision and allowed/denied status. Never copy, transcribe or otherwise record typed text.
+
+### Target matrix (test each row separately)
+
+- Basic Win32 Notepad
+- Packaged Notepad
+- Browser text input
+- Browser contenteditable
+- Browser password field (focus only; never type a real password)
+- Word or similar office editor
+- VS Code editor
+- VS Code integrated terminal
+- Windows Terminal
+- Messaging app compose field
+- XAML/UWP text box
+- Elevated/admin application
+- Remote Desktop session field
+- Game or custom-rendered text field
+
+A pass in one row says nothing about another app version or field category. The diagnostic probe does not insert text or show a popup.
+
+### Regression checklist
+
+When adapter, policy or popup code changes, rerun all matrix rows that change could affect, including relevant sensitive, elevated, remote, terminal and custom-rendered cases. Record app version, exact field category, date, probe status and generated aggregate row. Mark unavailable behavior Untested. Automated parser/policy tests stay in CI. Raw logs never go in docs or commits.
+
+### Stage 6 implementation verification (2026-10-28)
+
+The direct GitHub edit was not built or tested in this session. The compatibility report and fixture tests are committed source changes only; there is no claim here of a successful compile, test run or real-app session. The only external-app observations remain the owner reports described in the matrix, without dates, exact versions or saved logs.

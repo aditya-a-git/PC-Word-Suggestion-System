@@ -75,3 +75,8 @@ The new policy only gates diagnostic bounded reads. Do not integrate TSF into th
 The property API may be unsupported by a context owner; either S_FALSE or E_FAIL is classified Unknown by this probe. Microsoft documents the `GetAppProperty` then `GetValue` sequence, and the implementation follows that sequence. The exact cause of a given E_FAIL remains host-specific. Unknown scope passes only when the executable is allowlisted and all enabled, structural, and diagnostic opt-in gates pass; sensitive classifications still deny. See [Windows integration status](windows-integration-status.md) for current evidence and limitations.
 
 For a targeted diagnostic, use a disposable account, a standard Windows text control, and synthetic text. Register the x64 DLL per the instructions above, leave `PCWORD_TSF_ALLOW_CONTEXT_READ` unset, and capture debugger output containing only operation names and HRESULTs. This checks activation and property-call results without reading bounded text. Unregister the same DLL afterward. Do not treat a successful property query as authorization to send content into a prediction service.
+
+
+## Observation-level compatibility reporting
+
+The probe's DebugView records are status-only. The optional `PCWord.CompatReport` tool consumes saved TSV output and produces aggregate per-process counts. Raw logs can contain output from unrelated processes; keep them local under the ignored report logs folder, never copy or commit them, and publish only generated rows. A report cannot establish safe insertion or popup behavior because neither external feature exists. Owner-reported Notepad/browser observations have no date/version/log and must remain explicitly unverified.
