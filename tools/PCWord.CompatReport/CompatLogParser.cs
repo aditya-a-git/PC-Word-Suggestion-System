@@ -22,7 +22,7 @@ public static class CompatLogParser
 {
     private const string Marker = "[PCWord.TSF] ";
     private static readonly Regex EditPattern = new(
-        @"^edit-event selection-collapsed=(yes|no|unknown) caret-rect=(yes|no|unknown) before-count=(-1|[0-9]{1,9}) after-count=(-1|[0-9]{1,9}) inputscope-stage=(not-read|get-app-property|get-value|query-interface|get-input-scopes|complete) inputscope-hr=0x[0-9A-Fa-f]{8} classification=(safe|sensitive|unknown) decision=[a-z-]+ allowed=(yes|no)$",
+        @"^edit-event selection-collapsed=(yes|no|unknown) caret-rect=(yes|no|unknown) before-count=(-1|[0-9]{1,9}) after-count=(-1|[0-9]{1,9}) inputscope-stage=(not-read|get-app-property|get-value|query-interface|get-input-scopes|complete) inputscope-hr=(0x[0-9A-Fa-f]{8}) classification=(safe|sensitive|unknown) decision=[a-z-]+ allowed=(yes|no)$",
         RegexOptions.CultureInvariant | RegexOptions.Compiled);
 
     public static IReadOnlyList<CompatProcessSummary> Parse(IEnumerable<string> lines)
