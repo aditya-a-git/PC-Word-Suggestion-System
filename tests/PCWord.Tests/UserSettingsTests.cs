@@ -13,7 +13,14 @@ public sealed class UserSettingsTests
         try
         {
             var store = new JsonUserSettingsStore(file); var expected = UserSettings.Defaults with { Enabled = true };
-            store.Save(expected); Assert.Equal(expected, store.Load().Settings);
+            store.Save(expected);
+            var actual = store.Load().Settings;
+            Assert.Equal(expected.SchemaVersion, actual.SchemaVersion);
+            Assert.Equal(expected.Enabled, actual.Enabled);
+            Assert.Equal(expected.Pause, actual.Pause);
+            Assert.Equal(expected.Acceptance, actual.Acceptance);
+            Assert.Equal(expected.PersonalizationEnabled, actual.PersonalizationEnabled);
+            Assert.Equal(expected.Hosts, actual.Hosts);
             File.WriteAllText(file, File.ReadAllText(file).Replace("{", "{\"FutureFlag\":true,", StringComparison.Ordinal));
             Assert.True(store.Load().Settings.Enabled);
         }
@@ -37,4 +44,3 @@ public sealed class UserSettingsTests
     [Fact] public void DuplicateShortcutsAreRejected() => Assert.False((UserSettings.Defaults with { AcceptanceShortcut = UserSettings.Defaults.PauseShortcut }).IsValid(out _));
     [Fact] public void SaveRejectsInvalidSettings() => Assert.Throws<ArgumentException>(() => new JsonUserSettingsStore(Path.Combine(Path.GetTempPath(), "never", "settings.json")).Save(UserSettings.Defaults with { Enabled = true, HostAllowlist = ["bad"] }));
 }
-
