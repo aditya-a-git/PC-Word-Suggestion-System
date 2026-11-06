@@ -148,6 +148,11 @@ static SplitResult Evaluate(NGramModel model, string path, double backoff, int o
     var result = new SplitResult();
     foreach (EvaluationExample example in EvaluationExamples.Read(File.ReadLines(path), () => result.SkippedBeginningTokens++))
     {
+        if (example.Context.Length + 1 > InputContextSnapshot.MaximumTextBeforeCaret)
+        {
+            result.SkippedOverlongContexts++;
+            continue;
+        }
         // The shared candidate API receives only the left context; target is consulted only for scoring.
         var snapshot = new InputContextSnapshot(result.NGram.Examples + 1, "evaluation-field", example.Context + " ",
             string.Empty, 0, true, InputFieldSensitivity.KnownSafe, false, true);
@@ -168,6 +173,7 @@ static SplitResult Evaluate(NGramModel model, string path, double backoff, int o
 static object ToReport(SplitResult value) => new
 {
     skippedBeginningTokensWithoutLeftContext = value.SkippedBeginningTokens,
+    skippedOverlongContexts = value.SkippedOverlongContexts,
     ngram = MetricReport(value.NGram),
     unigramBaseline = MetricReport(value.Unigram),
     byAvailableContextOrder = value.ByContextOrder.OrderBy(x => x.Key).ToDictionary(x => x.Key.ToString(), x => MetricReport(x.Value)),
