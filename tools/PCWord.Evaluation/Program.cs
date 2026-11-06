@@ -3,6 +3,7 @@ using System.Text.Json;
 using PCWord.Core.Input;
 using PCWord.Evaluation;
 using PCWord.Prediction.Context;
+using PCWord.Prediction.Dictionary;
 using PCWord.Prediction.Inference;
 
 if (args.Length < 3 || args.Length > 5)
@@ -51,7 +52,7 @@ try
     var loadTimer = Stopwatch.StartNew();
     NGramModel loadedModel = NGramModel.Load(modelPath);
     loadTimer.Stop();
-    long modelBytes = new FileInfo(modelPath).Length;
+    long modelBytes = new FileInfo(modelPath).Length;\n    string bundledDictionaryPath = Path.Combine(AppContext.BaseDirectory, "Dictionary", "sample.tsv");\n    int? bundledDictionaryEntries = File.Exists(bundledDictionaryPath) ? DictionaryLoader.Load(bundledDictionaryPath).Count : null;
 
     var testTimer = Stopwatch.StartNew();
     SplitResult test = Evaluate(loadedModel, paths[2], backoff, order);
@@ -99,7 +100,7 @@ try
             },
             localFiles = paths
         },
-        model = new { algorithm = "bounded word n-gram backoff", maximumOrder = order, backoff, vocabularySize = loadedModel.VocabularySize, contextCount = loadedModel.ContextCount, modelBytes },
+        model = new { algorithm = "bounded word n-gram backoff", maximumOrder = order, backoff, vocabularySize = loadedModel.VocabularySize, contextCount = loadedModel.ContextCount, modelBytes },\n        completionDictionaryFixture = new { entries = bundledDictionaryEntries, usedForQualityMetrics = false, note = "The bundled sample dictionary is a synthetic demo fixture and is not used by next-word evaluation." },
         training = new { elapsedMilliseconds = trainTimer.Elapsed.TotalMilliseconds, loadingMilliseconds = loadTimer.Elapsed.TotalMilliseconds },
         validation = new { selectedBy = "top-3 accuracy, then top-1; ties prefer smaller order then smaller backoff", selectedConfiguration = new { order, backoff }, metrics = ToReport(validationMetrics[$"order-{order}-backoff-{backoff:F1}"]) },
         test = ToReport(test),
