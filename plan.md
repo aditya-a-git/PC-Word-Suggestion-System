@@ -291,6 +291,12 @@ Depends on Stage 0 input feasibility and Stage 2 context behavior. Popup positio
 
 ---
 
+### System-wide UI implementation update (2026-11-06)
+
+**Status: partial; exit criteria not met.** Added a separate non-activating WinForms popup component, controller, versioned candidate state, and pure monitor/work-area placement logic with automated tests. The UI consumes coordinator results and delegates acceptance back through the coordinator. It currently has no production external input source, keyboard route, or TSF write-session implementation.
+
+Remaining Stage 3 gates: live Windows verification that showing/hiding preserves target focus; real external caret placement and DPI/multi-monitor behavior; keyboard navigation through an approved input route; end-to-end Notepad acceptance with document verification; accessibility review and measured UI latency. See `docs/system-wide-suggestion-ui.md`. Do not mark complete based on geometry tests or compilation.
+
 ## Stage 4 — End-to-End Dictionary Completion and Performance Baseline
 
 ### Goal
