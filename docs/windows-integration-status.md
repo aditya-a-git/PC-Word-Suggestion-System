@@ -54,3 +54,16 @@ The managed Release build passed with zero warnings/errors and 139/139 managed t
 The TSF probe emits fixed status metadata for activation, focus and edit notifications, including selection/caret availability, bounded before/after character counts, InputScope stage/HRESULT, classification and policy decision. It does not emit text, candidates, window titles or field labels, and it does not insert text or display a popup. The new `PCWord.CompatReport` CLI parses only the probe marker records and generates aggregate Markdown rows grouped by process ID. Noise from other processes is not included in output. Raw DebugView logs must remain local and ignored.
 
 GitHub Actions run [40702996019](https://github.com/aditya-a-git/PC-Word-Suggestion-System/actions/runs/40702996019) for commit `badf6aeeaf8339b273439aa71186099c450285fa` completed successfully: Release restore/build passed with 0 warnings/errors, managed tests passed 159/159, the native x64 probe built, and CTest passed 2/2. No TSF host session was performed. Owner-reported Notepad/browser observations remain undated and lack exact app versions and saved logs. All other external app/version/field rows remain Untested. No production external-app support is claimed.
+
+
+## TSF feasibility recheck (2026-11-06)
+
+**Implemented:** native diagnostic service implements `ITfTextInputProcessor`, `ITfThreadMgrEventSink`, and `ITfTextEditSink`; status-only focus/edit events; TSF selection/caret/InputScope queries; policy-gated bounded diagnostic read attempt; HKCU COM/profile registration; C++ deny/allow policy tests.
+
+**Built and automated-policy-verified:** GitHub Actions run [42220760078](https://github.com/aditya-a-git/PC-Word-Suggestion-System/actions/runs/42220760078) passed solution build, managed tests, native x64 DLL build, and CTest 2/2.
+
+**Not runtime-verified in an application:** service activation, actual external text-store access, caret/selection reads, lifecycle/focus behavior, registration privilege requirements, and app-specific sensitive-field behavior. Existing Notepad/browser notes are owner-reported, undated, and lack versions/logs.
+
+**Not implemented:** TSF `ITfEditSession` write path / `RequestEditSession`, post-edit verification, production cross-process adapter/IPC, external prediction, or popup. Therefore external edit and document-integrity criteria are unverified, and no external application is claimed supported. Build and policy tests do not establish feasibility.
+
+The safe next step is a controlled Windows runtime pass using synthetic text and the procedure in `docs/testing-guide.md`. Implement a write-session experiment only after context acquisition and invalidation are verified in a host.
