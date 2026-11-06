@@ -13,7 +13,7 @@ A separate WinForms popup component and deterministic UI logic are implemented. 
 
 ## Window activation and lifetime
 
-The form uses `WS_EX_NOACTIVATE` and `WS_EX_TOOLWINDOW`, overrides `ShowWithoutActivation`, returns `MA_NOACTIVATE` for `WM_MOUSEACTIVATE`, shows through `SW_SHOWNOACTIVATE`, and repositions through `SetWindowPos` with `SWP_NOACTIVATE`. It is not shown in the taskbar. It is moved to `HWND_TOPMOST` only while shown; `Hide` explicitly demotes it to `HWND_NOTOPMOST`. These API choices are intended to preserve the current activation state; focus preservation still requires an interactive Windows test with the real target app.
+The form uses `WS_EX_NOACTIVATE` and `WS_EX_TOOLWINDOW`, overrides `ShowWithoutActivation`, returns `MA_NOACTIVATE` for `WM_MOUSEACTIVATE`, overrides WinForms `ShowWithoutActivation`, and repositions/shows through `SetWindowPos` with `SWP_NOACTIVATE`. It is not shown in the taskbar. It is moved to `HWND_TOPMOST` only while shown; `Hide` explicitly demotes it to `HWND_NOTOPMOST`. These API choices are intended to preserve the current activation state; focus preservation still requires an interactive Windows test with the real target app.
 
 ## Positioning and DPI
 
