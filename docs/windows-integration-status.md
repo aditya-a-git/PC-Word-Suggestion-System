@@ -76,3 +76,14 @@ The safe next step is a controlled Windows runtime pass using synthetic text and
 **Not implemented:** named-pipe transport, trusted peer authentication, production native TSF service, external-app context delivery, external suggestion UI, or authorized TSF write session.
 
 **Not verified:** any production external-app flow, host compatibility, disconnection/restart behavior, acceptance, or end-to-end latency. The earlier TSF probe is diagnostic only. See `docs/windows-integration-architecture.md` for boundaries and verification gates. Stage 0 remains open.
+
+
+## System-wide suggestion UI (2026-11-06)
+
+**Implemented:** separate `PCWord.WindowsUI` WinForms popup and `PCWord.WindowsUI.Logic`. The form uses no-activate/tool-window styles, nonactivating show/position calls, topmost ordering only while visible, caret/work-area geometry, high-contrast system colors, accessible candidate names, and a three-candidate cap. The controller consumes `DictionaryCompletionCoordinator` versioned events and delegates acceptance back to the coordinator.
+
+**Automated-test verified:** pure candidate state and popup placement tests run in the managed suite. The first CI run exposed an incorrect test expectation for a popup clamped at the right edge of a negative-coordinate monitor; the expectation has been corrected and a new run is in progress.
+
+**Not runtime-verified:** focus preservation, mouse activation, caret alignment, DPI movement, monitor changes, visual output, or accessibility behavior. No production external adapter supplies caret data yet; no external app can use this popup end-to-end.
+
+**Not implemented:** key routing from the target app, numbered acceptance shortcuts, production external TSF edit session, screen-reader announcement policy, or pipeline latency measurements. Do not claim system-wide functionality until the production adapter and interactive Windows checks are completed. See `docs/system-wide-suggestion-ui.md`.
