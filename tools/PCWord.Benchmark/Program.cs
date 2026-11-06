@@ -98,7 +98,7 @@ static int ParseIterations(string[] arguments)
     if (arguments.Length == 2 && arguments[0] == "--iterations" &&
         int.TryParse(arguments[1], out int value) && value is >= 100 and <= 100_000)
         return value;
-    Console.Error.WriteLine("Usage: PCWord.Benchmark [--iterations 100..100000]");
+    Console.Error.WriteLine("Usage: PCWord.Benchmark [--iterations 100..100000] [--dictionary <path>]");
     Environment.ExitCode = 2;
     return 0;
 }
