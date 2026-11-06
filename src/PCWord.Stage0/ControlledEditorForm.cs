@@ -166,7 +166,7 @@ internal sealed class ControlledEditorForm : Form
         long startedAt = Stopwatch.GetTimestamp();
         try
         {
-            string dictionaryPath = Path.Combine(AppContext.BaseDirectory, "Dictionary", "sample.tsv");
+            string dictionaryPath = Path.Combine(AppContext.BaseDirectory, "Dictionary", "esdb-en-US.tsv");
             return new CandidateRanker(new PrefixIndex(DictionaryLoader.Load(dictionaryPath)));
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidDataException)
