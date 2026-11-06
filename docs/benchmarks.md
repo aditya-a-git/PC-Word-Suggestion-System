@@ -97,3 +97,8 @@ No dictionary coverage/OOV or top-1/top-3 completion quality was measured. Those
 ## Production Windows adapter pipeline
 
 No end-to-end production adapter latency or sustained-typing measurements are available. The managed protocol codec and stale-request gate have automated contract tests, but there is no named-pipe transport, production TSF sender/edit session, external suggestion UI, or live integration to time. The existing dictionary/n-gram benchmark results do not represent external context acquisition or IPC. Do not infer a latency or responsiveness claim from those measurements.
+
+
+## System-wide popup measurements
+
+The UI logic and WinForms popup have no measured median/p95 display, positioning, selection, hide, or sustained-use latency. CI verifies the pure placement/state tests but does not show the native window. The popup is reused by its controller, but no performance result is claimed. End-to-end measurement must wait until a production input adapter sends real caret updates and the popup is manually verified in a Windows host.
