@@ -62,7 +62,7 @@ try
         : Path.GetFullPath(Path.Combine("artifacts", "stage-5", "evaluation-results.json"));
     Directory.CreateDirectory(Path.GetDirectoryName(resultsPath)!);
 
-    var examples = EvaluationExamples.Read(File.ReadLines(paths[2])).Take(25_000).ToArray();
+    var examples = EvaluationExamples.Read(File.ReadLines(paths[2])).Where(e => e.Context.Length + 1 <= InputContextSnapshot.MaximumTextBeforeCaret).Take(25_000).ToArray();
     var contextManager = new PredictionContextManager();
     long version = 0;
     // Warm-up uses the same context manager and model API as the coordinator path.
@@ -186,7 +186,7 @@ sealed class SplitResult
 {
     public TopKMetrics NGram { get; } = new();
     public TopKMetrics Unigram { get; } = new();
-    public long SkippedBeginningTokens { get; set; }
+    public long SkippedBeginningTokens { get; set; }\n    public long SkippedOverlongContexts { get; set; }
     public Dictionary<int, TopKMetrics> ByContextOrder { get; } = new();
     public Dictionary<int, TopKMetrics> UnigramByContextOrder { get; } = new();
 }
