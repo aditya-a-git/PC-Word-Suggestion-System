@@ -64,3 +64,8 @@ python -c "import pyarrow.parquet as p; from pathlib import Path; src=Path('wiki
 ```
 
 Use one file for each split and never reuse validation or test content for training. Each row/line and each `.`, `!`, or `?` starts a fresh token history. Normalization is Unicode letters, digits, and combining marks, invariant lowercase; punctuation separates tokens, while `. ! ?` terminate sentence history. This is Wikipedia prose and does not establish quality for chat, code, names, or specialized writing. Corpus download was attempted during Stage 5 implementation but the network connection reset; no source file hashes were independently recomputed in this environment.
+
+
+### Retrieval attempt on 2026-11-06
+
+The pinned WikiText-2 train split was retried from this environment with curl.exe -L --fail --max-time 30. DNS resolution failed with curl: (6) Could not resolve host: huggingface.co. No file was created and no checksum was computed. Verify all three downloaded files locally before conversion and evaluation; the source-published hashes above are not locally verified.
