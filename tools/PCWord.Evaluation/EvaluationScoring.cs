@@ -20,7 +20,7 @@ public static class EvaluationExamples
                     yield return new EvaluationExample(
                         string.Join(' ', segment.Skip(start).Take(targetIndex - start)),
                         segment[targetIndex],
-                        Math.Min(targetIndex, 3));
+                        Math.Min(targetIndex, 2));
                 }
             }
         }
