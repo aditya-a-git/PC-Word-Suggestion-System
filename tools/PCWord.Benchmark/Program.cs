@@ -9,7 +9,9 @@ const int warmupIterations = 100;
 int iterations = ParseIterations(args);
 if (iterations == 0)
     return 2;
-string dictionaryPath = args.Contains("--dictionary", StringComparer.Ordinal)\n    ? args[Array.IndexOf(args, "--dictionary") + 1]\n    : Path.Combine(AppContext.BaseDirectory, "Dictionary", "sample.tsv");
+string dictionaryPath = args.Contains("--dictionary", StringComparer.Ordinal)
+    ? args[Array.IndexOf(args, "--dictionary") + 1]
+    : Path.Combine(AppContext.BaseDirectory, "Dictionary", "sample.tsv");
 var process = Process.GetCurrentProcess();
 long startupStarted = Stopwatch.GetTimestamp();
 IReadOnlyList<DictionaryEntry> entries = DictionaryLoader.Load(dictionaryPath);
