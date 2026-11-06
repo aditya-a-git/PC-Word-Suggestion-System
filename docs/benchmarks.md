@@ -68,3 +68,12 @@ dotnet run --project .\tools\PCWord.Evaluation\PCWord.Evaluation.csproj --config
 **Synthetic harness smoke only (not a dataset result):** with 4 short authored lines, the evaluator selected order 2/backoff 0.2 on its synthetic validation split; test n=5, target coverage 100%, OOV 0%, top-1 80%, top-3 80%, unigram top-1 0%, top-3 40%. Model build 26.47 ms, reload 8.43 ms, model size 539 bytes, lookup median/p95 0.01890/0.02980 ms, synthetic manager-plus-model request median/p95 0.01510/1.55630 ms, test evaluation 0.22 ms, process CPU 109.38 ms, managed delta +136,336 bytes, working set delta +8,269,824 bytes. These tiny-run figures only demonstrate that the harness emits measurements and that model save/load works; they have no quality or resource significance for WikiText or production.
 
 The optional controlled-editor path records n-gram lookup in the bounded `CompletionMetrics` ring and continues to measure context acquisition, delivery, UI update, and coordinator end-to-end time. Its live WinForms UI measurement and interactive acceptance path were not run in this environment. The Stage 4 nine-word dictionary baseline above is unchanged and is not evidence for Stage 5 quality. External applications remain unsupported.
+
+
+## Stage 5 evaluation harness update (2026-11-06)
+
+The evaluator now writes machine-readable JSON and reports top-1/top-3/top-5 for the n-gram model and unigram baseline, vocabulary coverage, OOV rate, all-eligible and in-vocabulary-conditioned accuracy, first-token and overlong-context skips, context-size buckets, model train/load time and size, plus warmed context-manager/model median and p95 latency. Quality and baseline scores use identical eligible examples and the existing PredictionContextManager and NGramModel.Predict API. Contexts contain only preceding tokens.
+
+No WikiText-2 results are available. A 2026-11-06 attempt to retrieve the pinned corpus failed because this environment could not resolve huggingface.co; no dataset checksum was recomputed and no corpus-backed measurement is claimed. See docs/stage-5-evaluation.md and data/README.md for reproduction steps and source metadata. Synthetic fixture results remain harness-only.
+
+The 25,000-sample prediction timing excludes corpus file I/O and WinForms reads, painting, delivery and acceptance. Interactive WinForms verification remains outstanding.
