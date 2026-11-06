@@ -23,5 +23,24 @@
   "guiVerification": {
     "status": "not-performed",
     "reason": "Interactive WinForms execution not available through the connected repository tooling."
-  }
+  },
+  "modelConfiguration": {
+    "algorithm": "bounded word n-gram backoff",
+    "selection": null,
+    "selectionMethod": "validation top-3 then top-1; tie-break smaller order and backoff",
+    "candidateOrders": [
+      1,
+      2,
+      3
+    ],
+    "backoffFactors": [
+      0.2,
+      0.4,
+      0.6,
+      0.8
+    ],
+    "maximumVocabulary": 20000,
+    "maximumContextEntries": 250000
+  },
+  "notes": "Actual configuration, metrics, and benchmark remain unavailable until the pinned dataset is downloaded and checksums are verified. No synthetic or fabricated values are substituted."
 }
