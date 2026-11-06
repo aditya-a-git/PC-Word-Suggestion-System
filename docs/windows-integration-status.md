@@ -67,3 +67,12 @@ GitHub Actions run [40702996019](https://github.com/aditya-a-git/PC-Word-Suggest
 **Not implemented:** TSF `ITfEditSession` write path / `RequestEditSession`, post-edit verification, production cross-process adapter/IPC, external prediction, or popup. Therefore external edit and document-integrity criteria are unverified, and no external application is claimed supported. Build and policy tests do not establish feasibility.
 
 The safe next step is a controlled Windows runtime pass using synthetic text and the procedure in `docs/testing-guide.md`. Implement a write-session experiment only after context acquisition and invalidation are verified in a host.
+
+
+## Production input adapter work (2026-11-06)
+
+**Managed contract implemented and automated-test pending:** `src/PCWord.WindowsIntegration` provides bounded protocol validation and a cancellation/stale-result gate. Tests are wired into the existing managed test project. This component does not provide transport or connect to the TSF probe.
+
+**Not implemented:** named-pipe transport, trusted peer authentication, production native TSF service, external-app context delivery, external suggestion UI, or authorized TSF write session.
+
+**Not verified:** any production external-app flow, host compatibility, disconnection/restart behavior, acceptance, or end-to-end latency. The earlier TSF probe is diagnostic only. See `docs/windows-integration-architecture.md` for boundaries and verification gates. Stage 0 remains open.
