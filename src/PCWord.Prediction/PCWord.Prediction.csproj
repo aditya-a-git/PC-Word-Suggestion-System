@@ -10,4 +10,7 @@
     <ProjectReference Include="../PCWord.Core/PCWord.Core.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <Content Include="Dictionary/esdb-en-US.tsv" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
 </Project>
