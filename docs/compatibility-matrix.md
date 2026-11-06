@@ -53,3 +53,18 @@ No application was launched or tested in an interactive Windows TSF session duri
 | PCWord owned WinForms editor | Current repository build | x64 CI build; interactive run not performed | Not applicable (in-process adapter) | Implemented/tested under managed contracts | Owned-control explicit edit path only; live GUI not run | Managed coverage only |
 
 The TSF probe has no write edit-session implementation. Do not infer text-edit support from TSF activation or diagnostic read results.
+
+
+## System-wide popup verification (2026-11-06)
+
+No interactive UI run was performed. The UI project compiles in CI, but external caret delivery and TSF acceptance are not connected.
+
+| Application | Popup activation/focus | Caret placement | DPI/multi-monitor | Mouse/keyboard acceptance | Result |
+|---|---|---|---|---|---|
+| PCWord controlled editor | Existing child popup only; separate top-level UI not integrated | Owned child control only | No test | Existing editor shortcuts; not the new popup | Existing controlled-editor behavior only |
+| Notepad | Untested; production adapter unavailable | Untested | Untested | Untested; authorized external edit path absent | No system-wide support claim |
+| WordPad / Microsoft Word | Untested | Untested | Untested | Untested | Untested |
+| Chrome / Edge | Untested | Untested | Untested | Untested | Untested |
+| Visual Studio Code | Untested | Untested | Untested | Untested | Untested |
+
+The pure geometry tests are algorithm tests only. They do not test an HWND, focus preservation, real caret coordinate transforms, monitor DPI, or app compatibility.
