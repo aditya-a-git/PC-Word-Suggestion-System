@@ -44,3 +44,10 @@ This is a feasibility spike only: no key interception, popup, prediction, IPC, o
 
 
 See [Windows integration status](../../docs/windows-integration-status.md) for the implementation boundary, Microsoft API references, and remaining verification gates. The native probe remains a feasibility tool; it is not yet a production system-wide adapter.
+
+
+## Feasibility boundary
+
+The probe currently implements read-only diagnostic observation. It uses `ITfTextInputProcessor`, `ITfThreadMgrEventSink`, and `ITfTextEditSink`; it does **not** implement `ITfEditSession` or call `ITfContext::RequestEditSession` for a write. It cannot replace a selection or word, verify post-edit text, or establish external editing feasibility. Do not use keystroke simulation as a substitute.
+
+A successful CMake build and policy CTest run verify compilation and local policy decisions only. They do not verify service activation in Notepad or other hosts. As of 2026-11-06 no dated/versioned runtime session is recorded in this repository. Use the test protocol and status-report shape in `docs/testing-guide.md`; record application/build versions and status outcomes, never document text. The probe's debugger output includes character counts, so review and limit shared logs to marker rows only.
