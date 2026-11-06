@@ -58,3 +58,8 @@ dotnet run --project .\tools\PCWord.Evaluation\PCWord.Evaluation.csproj --config
 ```
 
 The corpus and generated model are local files and must not be committed. The command prints aggregate numbers only and writes a machine-readable result. Then run the WinForms manual checklist in `docs/testing-guide.md` with disposable text.
+
+
+## Verification on main
+
+Commit 1127aa0 passed GitHub Actions run [42161998128](https://github.com/aditya-a-git/PC-Word-Suggestion-System/actions/runs/42161998128): Release restore/build passed, managed tests passed 173/173, and the native TSF probe configured/built with policy tests passing. This verifies build and automated behavior only; it does not provide WikiText metrics or interactive WinForms evidence.
