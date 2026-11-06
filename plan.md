@@ -366,7 +366,7 @@ Add a small local next-word predictor after an eligible word boundary, evaluated
 
 ### Status
 
-Implementation status (2026-10-28): the bounded offline n-gram predictor, owned-editor boundary integration, explicit zero-prefix acceptance validation, metrics integration, and local evaluation harness are implemented. Automated Release build/tests are the verification target. The public fixed-split corpus download reset in this environment, so test-set quality/performance results and interactive WinForms verification are still outstanding. No corpus/model is bundled, arbitrary external applications remain unsupported, and Stage 5 exit criteria are not complete until these remaining validations are recorded.
+Implementation status (updated 2026-11-06): the bounded offline n-gram predictor and owned-editor boundary integration are implemented. The evaluation harness now reports top-1/top-3/top-5, vocabulary/OOV coverage, conditional accuracy, skipped examples, validation selection, model load/size and warmed prediction latency in JSON; deterministic tests cover top-k metrics and no-future-token contexts. The pinned WikiText download was retried and failed because DNS could not resolve huggingface.co; no checksums were locally verified and no dataset result is claimed. Interactive WinForms verification remains outstanding. Stage 5 exit criteria are not met.
 
 ---
 
