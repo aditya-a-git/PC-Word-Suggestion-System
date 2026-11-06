@@ -149,3 +149,43 @@ Run on Windows with a generated local model (do not check it in):
 9. Keep typing during normal operation and confirm the UI remains responsive. Check Performance stats for aggregate UI timings; do not record typed content.
 
 Record Windows version, build commit, model revision, and pass/fail per item. This checklist has not been executed in this environment. Automated tests and CI do not count as interactive UI verification.
+
+
+## TSF diagnostic runtime test (manual; not equivalent to a build test)
+
+This test requires an interactive Windows 11 VM/test account, Visual Studio C++ build tools, CMake 3.24+, and DebugView or Visual Studio debugger output. Use synthetic text only. Do not run against password, PIN, payment, private message, code, or document fields.
+
+1. Record Windows edition/build (`winver`), app name/version, and x64/x86 architecture. Use a disposable account.
+2. Build the probe with the command above. Try per-user registration without elevation first. If it fails, save only the HRESULT. Do not switch to machine-wide registration. Unregister with the same user and DLL after the run.
+3. Start with Notepad and a short synthetic phrase. Confirm that defaults are paused and that no bounded read is allowed until the settings, host allowlist, and `PCWORD_TSF_ALLOW_CONTEXT_READ=1` are all intentionally set for the test.
+4. Run separate cases for empty document, caret at start/end, punctuation, whitespace, Unicode BMP/supplementary text, multi-character selection, focus switching, rapid changes, disabled settings, non-allowlisted host, sensitive InputScope (if a safe test control is available), unknown/unavailable scope, and unavailable context.
+5. Capture only `[PCWord.TSF]` status marker lines locally. They include reason/HRESULT and bounded character counts but no text. Review before sharing to ensure no unrelated DebugView output is included.
+6. Record each test as a JSON object using the schema below. Populate observed booleans/reasons only from the status record. `manualDocumentVerified` requires visually checking the synthetic document. Never include the synthetic phrase or any extracted text.
+7. Repeat for WordPad (if installed), Word, Chrome/Edge plain input/contenteditable, and VS Code editor/terminal only after updating the explicit allowlist for that one test. Do not leave browser names allowlisted afterward. A test where profile activation is absent should be recorded as unsupported/unavailable, not skipped silently.
+8. External text edits cannot currently be tested: the probe does not request a write edit session. Do not use `SendInput` to imitate a TSF edit.
+
+Example report shape (store outside the repository until reviewed):
+
+```json
+{
+  "schemaVersion": 1,
+  "testId": "notepad-empty-caret",
+  "dateUtc": "YYYY-MM-DD",
+  "windowsBuild": "record winver value",
+  "application": "notepad.exe",
+  "applicationVersion": "record file/product version",
+  "processArchitecture": "x64",
+  "preconditions": ["synthetic text", "explicit allowlist", "diagnostic opt-in"],
+  "operation": "bounded TSF context status",
+  "serviceActivated": false,
+  "selectionKnown": false,
+  "selectionCollapsed": false,
+  "caretRectAvailable": false,
+  "contextReadAllowed": false,
+  "failureHresult": null,
+  "manualDocumentVerified": false,
+  "textLogged": false
+}
+```
+
+Keep one row per case. Report no actual text, window title, field label, or document data. Registration and app-specific results remain unverified until this procedure is executed on Windows.
