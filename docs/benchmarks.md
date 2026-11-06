@@ -92,3 +92,8 @@ dotnet run --project .\tools\PCWord.Benchmark\PCWord.Benchmark.csproj --configur
 Repeat with the default sample and compare startup/load-index, lookup and synthetic coordinator stages under identical conditions. The current prefix workload is small and uses six fixed prefixes; before reporting high-fanout and long-prefix results, extend the workload with representative known and unknown prefixes and report each group separately. The 79,343-entry count is a data statistic, not a performance measurement.
 
 No dictionary coverage/OOV or top-1/top-3 completion quality was measured. Those require a pinned licensed held-out text corpus; the WikiText Stage 5 evaluator measures next-word model prediction and does not score completion dictionary coverage.
+
+
+## Production Windows adapter pipeline
+
+No end-to-end production adapter latency or sustained-typing measurements are available. The managed protocol codec and stale-request gate have automated contract tests, but there is no named-pipe transport, production TSF sender/edit session, external suggestion UI, or live integration to time. The existing dictionary/n-gram benchmark results do not represent external context acquisition or IPC. Do not infer a latency or responsiveness claim from those measurements.
