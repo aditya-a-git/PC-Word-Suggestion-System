@@ -4,7 +4,7 @@
 
 `tools/PCWord.TsfProbe` is an experimental native C++ COM text service. It is separate from prediction and UI Automation code. It observes service activation, document focus, context edit notifications, selection/caret status, caret geometry, InputScope retrieval and the configured safety decision. A status-only DebugView marker can be aggregated by `PCWord.CompatReport`.
 
-The probe performs an opt-in bounded **read attempt** only inside TSF's authorized edit callback, after policy gates. It logs neither text nor the read character counts in the updated design plan? Current implementation emits before/after character counts in status records, not content. This is limited diagnostic metadata. No arbitrary document read, file logging, external IPC, keystroke simulation, edit session, text replacement, suggestion UI, or production adapter is implemented.
+The probe performs an opt-in bounded **read attempt** only inside TSF's authorized edit callback, after policy gates. It does not log text content. Current implementation emits before/after character counts in status records, which is limited diagnostic metadata. This is limited diagnostic metadata. No arbitrary document read, file logging, external IPC, keystroke simulation, edit session, text replacement, suggestion UI, or production adapter is implemented.
 
 **Feasibility is not established for external editing.** The repository has no `ITfEditSession` implementation and no `ITfContext::RequestEditSession` write request. No real Windows GUI host test result with versioned environment and saved output is currently checked in. A DLL build and policy unit tests do not prove host activation, text-store coverage, or document integrity.
 
