@@ -9,7 +9,7 @@ const int warmupIterations = 100;
 int iterations = ParseIterations(args);
 if (iterations == 0)
     return 2;
-string dictionaryPath = Path.Combine(AppContext.BaseDirectory, "Dictionary", "sample.tsv");
+string dictionaryPath = args.Contains("--dictionary", StringComparer.Ordinal)\n    ? args[Array.IndexOf(args, "--dictionary") + 1]\n    : Path.Combine(AppContext.BaseDirectory, "Dictionary", "sample.tsv");
 var process = Process.GetCurrentProcess();
 long startupStarted = Stopwatch.GetTimestamp();
 IReadOnlyList<DictionaryEntry> entries = DictionaryLoader.Load(dictionaryPath);
@@ -62,7 +62,7 @@ long workingSetAfter = process.WorkingSet64;
 long managedHeapAfter = GC.GetTotalMemory(forceFullCollection: true);
 
 Console.WriteLine("PCWord Stage 4 completion benchmark (synthetic prefixes; no input text or candidates printed)");
-Console.WriteLine($"Dictionary: bundled sample.tsv, {entries.Count} entries");
+Console.WriteLine($"Dictionary: {dictionaryPath}, {entries.Count} entries");
 Console.WriteLine($"Warmup iterations: {warmupIterations}; measured iterations per phase: {iterations}");
 Console.WriteLine("End-to-end includes synthetic bounded snapshot construction, context management, dictionary ranking, event delivery, and a synthetic result consumer; it excludes RichTextBox/Win32 calls and actual painting.");
 Console.WriteLine($"Dictionary startup (load + index): {dictionaryStartup.TotalMilliseconds:F3} ms (one sample)");
