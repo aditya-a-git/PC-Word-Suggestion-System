@@ -33,7 +33,7 @@ public sealed class EvaluationScoringTests
         Assert.Equal(new EvaluationExample("alpha beta", "gamma", 2), examples[1]);
         Assert.Equal(new EvaluationExample("delta", "epsilon", 1), examples[2]);
         Assert.Equal(new EvaluationExample("zeta", "eta", 1), examples[3]);
-        Assert.DoesNotContain(examples, example => example.Context.Contains(example.Target, StringComparison.Ordinal));
+        Assert.All(examples, example => Assert.DoesNotContain(PCWord.Prediction.Inference.WordTokenizer.Tokenize(example.Context), token => token == example.Target));
     }
 
     [Fact]
