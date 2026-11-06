@@ -189,6 +189,12 @@ Can be developed while Stage 0 research proceeds, provided no production input A
 
 ---
 
+### Production adapter implementation update (2026-11-06)
+
+**Status: partial; not production-functional.** Added `src/PCWord.WindowsIntegration` with a bounded/versioned managed message contract and cancellation plus stale-result identity gate. Managed tests are connected through `tests/PCWord.Tests`. This code does not yet create a named pipe, authenticate a peer, call the production TSF service, or accept external edits.
+
+The diagnostic TSF feasibility gate still has no interactive app evidence and no write edit session. Do not enable external prediction or acceptance. Remaining work includes authenticated local transport, native TSF context sender, process lifecycle/recovery, separate suggestion presentation, authorized write-session experiment, end-to-end Notepad validation, other application matrix, and measured pipeline latency. See `docs/windows-integration-architecture.md`.
+
 ## Stage 2 — Input Adapter Contract and Context Manager
 
 ### Goal
