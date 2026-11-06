@@ -77,3 +77,18 @@ The evaluator now writes machine-readable JSON and reports top-1/top-3/top-5 for
 No WikiText-2 results are available. A 2026-11-06 attempt to retrieve the pinned corpus failed because this environment could not resolve huggingface.co; no dataset checksum was recomputed and no corpus-backed measurement is claimed. See docs/stage-5-evaluation.md and data/README.md for reproduction steps and source metadata. Synthetic fixture results remain harness-only.
 
 The 25,000-sample prediction timing excludes corpus file I/O and WinForms reads, painting, delivery and acceptance. Interactive WinForms verification remains outstanding.
+
+
+## Dictionary expansion comparison status (2026-11-06)
+
+The nine-entry sample remains the only measured prefix benchmark. The ESDB-derived vocabulary has 79,343 unique word forms. No timings or memory numbers for it are published here because the workspace cannot run the current repository checkout and the benchmark must be executed against the same .NET 10 build and machine for both inputs.
+
+The benchmark now accepts `--dictionary <path>`:
+
+```powershell
+dotnet run --project .\tools\PCWord.Benchmark\PCWord.Benchmark.csproj --configuration Release -- --iterations 100000 --dictionary .\artifacts\dictionary\esdb-en-US.tsv
+```
+
+Repeat with the default sample and compare startup/load-index, lookup and synthetic coordinator stages under identical conditions. The current prefix workload is small and uses six fixed prefixes; before reporting high-fanout and long-prefix results, extend the workload with representative known and unknown prefixes and report each group separately. The 79,343-entry count is a data statistic, not a performance measurement.
+
+No dictionary coverage/OOV or top-1/top-3 completion quality was measured. Those require a pinned licensed held-out text corpus; the WikiText Stage 5 evaluator measures next-word model prediction and does not score completion dictionary coverage.
