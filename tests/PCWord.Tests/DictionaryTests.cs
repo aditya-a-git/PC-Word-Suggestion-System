@@ -57,13 +57,15 @@ public class DictionaryTests
     }
 
     [Fact]
-    public void Load_DuplicateWordsIgnoringCase_Throws()
+    public void Load_DuplicateWordsIgnoringCase_UsesFirstEntry()
     {
         using var stream = CreateStream(
             "apple\t100\nAPPLE\t50\n");
 
-        Assert.Throws<InvalidDataException>(
-            () => DictionaryLoader.Load(stream));
+        var entries = DictionaryLoader.Load(stream);
+        Assert.Single(entries);
+        Assert.Equal("apple", entries[0].Word);
+        Assert.Equal(100, entries[0].Frequency);
     }
 
     [Theory]
