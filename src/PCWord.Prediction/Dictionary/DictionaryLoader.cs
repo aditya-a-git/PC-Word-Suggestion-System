@@ -80,10 +80,7 @@ public static class DictionaryLoader
             }
 
             if (!seenWords.Add(word))
-            {
-                throw new InvalidDataException(
-                    $"Duplicate word on line {lineNumber}: {word}");
-            }
+                continue;
 
             if (entries.Count >= MaxEntries)
             {
