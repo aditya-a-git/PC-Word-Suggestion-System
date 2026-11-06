@@ -192,7 +192,8 @@ sealed class SplitResult
 {
     public TopKMetrics NGram { get; } = new();
     public TopKMetrics Unigram { get; } = new();
-    public long SkippedBeginningTokens { get; set; }\n    public long SkippedOverlongContexts { get; set; }
+    public long SkippedBeginningTokens { get; set; }
+    public long SkippedOverlongContexts { get; set; }
     public Dictionary<int, TopKMetrics> ByContextOrder { get; } = new();
     public Dictionary<int, TopKMetrics> UnigramByContextOrder { get; } = new();
 }
