@@ -189,3 +189,14 @@ Example report shape (store outside the repository until reviewed):
 ```
 
 Keep one row per case. Report no actual text, window title, field label, or document data. Registration and app-specific results remain unverified until this procedure is executed on Windows.
+
+
+## Suggestion popup harness
+
+On Windows, run the synthetic renderer/mouse harness:
+
+```powershell
+dotnet run --project .\tools\PCWord.WindowsUIHarness\PCWord.WindowsUIHarness.csproj
+```
+
+Click **Show sample popup at mouse pointer**. The harness reports candidate clicks but never reads or edits external text. It is suitable for basic rendering and placement inspection only. Real focus preservation, caret placement, DPI/multi-monitor behavior, keyboard routing and external acceptance still require an interactive test with the production adapter.
