@@ -11,7 +11,6 @@ public sealed class SuggestionPopupWindow : Form
     private const int WsExNoActivate = 0x08000000;
     private const int WmMouseActivate = 0x0021;
     private const int MaNoActivate = 3;
-    private const int SwShownoactivate = 4;
     private const uint SwpNoSize = 0x0001;
     private const uint SwpNoMove = 0x0002;
     private const uint SwpNoActivate = 0x0010;
@@ -135,8 +134,9 @@ public sealed class SuggestionPopupWindow : Form
         Rectangle workArea = GetMonitorWorkArea(caretScreenBounds);
         Size physicalSize = GetPhysicalWindowSize();
         Rectangle placement = PopupPlacement.Calculate(caretScreenBounds, physicalSize, workArea, rightToLeft);
+        Bounds = placement;
         if (!Visible)
-            ShowWindow(Handle, SwShownoactivate);
+            Show();
 
         SetWindowPos(Handle, HwndTopmost, placement.Left, placement.Top,
             placement.Width, placement.Height, SwpNoActivate | SwpNoOwnerZOrder | SwpShowWindow);
@@ -207,9 +207,6 @@ public sealed class SuggestionPopupWindow : Form
     [DllImport("user32.dll", SetLastError = true)]
     private static extern bool SetWindowPos(IntPtr window, IntPtr insertAfter, int x, int y,
         int width, int height, uint flags);
-
-    [DllImport("user32.dll")]
-    private static extern bool ShowWindow(IntPtr window, int command);
 
     [DllImport("user32.dll")]
     private static extern bool GetWindowRect(IntPtr window, out NativeRect rect);
