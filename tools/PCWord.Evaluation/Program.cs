@@ -1,114 +1,200 @@
 using System.Diagnostics;
-using PCWord.Prediction.Inference;
-using PCWord.Prediction.Context;
+using System.Text.Json;
 using PCWord.Core.Input;
+using PCWord.Evaluation;
+using PCWord.Prediction.Context;
+using PCWord.Prediction.Inference;
 
-if (args.Length < 3)
+if (args.Length < 3 || args.Length > 5)
 {
-    Console.Error.WriteLine("Usage: PCWord.Evaluation <train.txt> <validation.txt> <test.txt> [model-output.json]");
+    Console.Error.WriteLine("Usage: PCWord.Evaluation <train.txt> <validation.txt> <test.txt> [model-output.json] [results.json]");
     return 2;
 }
 
+string? temporaryModel = null;
 try
 {
-    if (new[] { args[0], args[1], args[2] }.Select(Path.GetFullPath)
-        .Distinct(StringComparer.OrdinalIgnoreCase).Count() != 3)
+    string[] paths = args.Take(3).Select(Path.GetFullPath).ToArray();
+    if (paths.Distinct(StringComparer.OrdinalIgnoreCase).Count() != 3)
         throw new ArgumentException("Train, validation, and test inputs must be distinct files.");
-    long allocatedBefore = GC.GetTotalMemory(true);
+    foreach (string path in paths)
+        if (!File.Exists(path)) throw new FileNotFoundException("A required split file is missing.");
+
+    long managedBefore = GC.GetTotalMemory(true);
     long workingBefore = Environment.WorkingSet;
     TimeSpan cpuBefore = Process.GetCurrentProcess().TotalProcessorTime;
-    var build = Stopwatch.StartNew();
-    NGramModel model = NGramModel.Train(File.ReadLines(args[0]));
-    build.Stop();
 
-    (int order, double alpha, Metrics _) = new[] { 1, 2, 3 }.SelectMany(order => new[] { .2, .4, .6, .8 }
-        .Select(alpha => (order, alpha, Evaluate(model, args[1], alpha, order))))
-        .OrderByDescending(x => x.Item3.Top3).ThenByDescending(x => x.Item3.Top1)
-        .ThenBy(x => x.order).ThenBy(x => x.alpha).First();
+    var trainTimer = Stopwatch.StartNew();
+    NGramModel model = NGramModel.Train(File.ReadLines(paths[0]));
+    trainTimer.Stop();
 
-    model.ConfigurePrediction(alpha, order);
-    string? modelOutput = args.Length > 3 ? args[3] : null;
-    var testTimer = Stopwatch.StartNew();
-    Metrics test = Evaluate(model, args[2], alpha, order);
-    testTimer.Stop();
-    var lookupTimes = new double[Math.Min(2048, Math.Max(1, test.Examples))];
-    var requestTimes = new double[lookupTimes.Length];
-    var contextManager = new PredictionContextManager();
-    string[] testLines = File.ReadLines(args[2]).ToArray();
-    int sample = 0;
-    foreach (string line in testLines)
-    {
-        foreach (string[] words in WordTokenizer.TokenizeSegments(line))
-        for (int i = 1; i < words.Length && sample < lookupTimes.Length; i++)
+    var validationMetrics = new Dictionary<string, SplitResult>(StringComparer.Ordinal);
+    (int order, double backoff) = (new[] { 1, 2, 3 }
+        .SelectMany(candidateOrder => new[] { .2, .4, .6, .8 }.Select(candidateBackoff =>
         {
-            var timer = Stopwatch.StartNew(); _ = model.Predict(string.Join(' ', words.Take(i)), 3, alpha, order);
-            timer.Stop(); lookupTimes[sample++] = timer.Elapsed.TotalMilliseconds;
-            if (sample <= requestTimes.Length)
-            {
-                string before = string.Join(' ', words.Take(i)) + " ";
-                var requestTimer = Stopwatch.StartNew();
-                var snapshot = new InputContextSnapshot(sample, "evaluation-field", before, string.Empty,
-                    0, true, InputFieldSensitivity.KnownSafe, false, true);
-                if (contextManager.TryUpdate(snapshot) && contextManager.Current.CanPredictNextWord)
-                    _ = model.Predict(contextManager.Current.PrecedingText, 3, alpha, order);
-                requestTimer.Stop(); requestTimes[sample - 1] = requestTimer.Elapsed.TotalMilliseconds;
-            }
-        }
-    }
-    double? loadMilliseconds = null;
-    long? modelBytes = null;
-    if (modelOutput is not null)
+            SplitResult score = Evaluate(model, paths[1], candidateBackoff, candidateOrder);
+            validationMetrics[$"order-{candidateOrder}-backoff-{candidateBackoff:F1}"] = score;
+            return (Order: candidateOrder, Backoff: candidateBackoff, Score: score);
+        }))
+        .OrderByDescending(x => x.Score.NGram.Top3)
+        .ThenByDescending(x => x.Score.NGram.Top1)
+        .ThenBy(x => x.Order)
+        .ThenBy(x => x.Backoff)
+        .Select(x => (x.Order, x.Backoff)).First());
+
+    model.ConfigurePrediction(backoff, order);
+    string modelPath = args.Length >= 4
+        ? Path.GetFullPath(args[3])
+        : temporaryModel = Path.Combine(Path.GetTempPath(), $"pcword-evaluation-{Guid.NewGuid():N}.json");
+    Directory.CreateDirectory(Path.GetDirectoryName(modelPath)!);
+    model.Save(modelPath);
+    var loadTimer = Stopwatch.StartNew();
+    NGramModel loadedModel = NGramModel.Load(modelPath);
+    loadTimer.Stop();
+    long modelBytes = new FileInfo(modelPath).Length;
+
+    var testTimer = Stopwatch.StartNew();
+    SplitResult test = Evaluate(loadedModel, paths[2], backoff, order);
+    testTimer.Stop();
+
+    string resultsPath = args.Length >= 5
+        ? Path.GetFullPath(args[4])
+        : Path.GetFullPath(Path.Combine("artifacts", "stage-5", "evaluation-results.json"));
+    Directory.CreateDirectory(Path.GetDirectoryName(resultsPath)!);
+
+    var examples = EvaluationExamples.Read(File.ReadLines(paths[2])).Take(25_000).ToArray();
+    var contextManager = new PredictionContextManager();
+    long version = 0;
+    // Warm-up uses the same context manager and model API as the coordinator path.
+    foreach (EvaluationExample example in examples.Take(Math.Min(256, examples.Length)))
+        _ = PredictAtBoundary(loadedModel, contextManager, example, ++version, order, backoff);
+    var latencies = new double[examples.Length];
+    for (int i = 0; i < examples.Length; i++)
     {
-        Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(modelOutput))!);
-        model.Save(modelOutput);
-        var loadTimer = Stopwatch.StartNew(); _ = NGramModel.Load(modelOutput); loadTimer.Stop();
-        loadMilliseconds = loadTimer.Elapsed.TotalMilliseconds;
-        modelBytes = new FileInfo(modelOutput).Length;
+        var timer = Stopwatch.StartNew();
+        _ = PredictAtBoundary(loadedModel, contextManager, examples[i], ++version, order, backoff);
+        timer.Stop();
+        latencies[i] = timer.Elapsed.TotalMilliseconds;
     }
-    Array.Sort(lookupTimes, 0, sample);
-    double median = sample == 0 ? double.NaN : lookupTimes[(sample - 1) / 2];
-    double p95 = sample == 0 ? double.NaN : lookupTimes[Math.Max(0, (int)Math.Ceiling(sample * .95) - 1)];
-    Array.Sort(requestTimes, 0, sample);
-    double requestMedian = sample == 0 ? double.NaN : requestTimes[(sample - 1) / 2];
-    double requestP95 = sample == 0 ? double.NaN : requestTimes[Math.Max(0, (int)Math.Ceiling(sample * .95) - 1)];
+    Array.Sort(latencies);
+    double? median = Percentile(latencies, .50);
+    double? p95 = Percentile(latencies, .95);
+
     GC.Collect(); GC.WaitForPendingFinalizers();
-    Console.WriteLine("PCWord local n-gram evaluation (aggregate metrics only)");
-    Console.WriteLine($"Tokenizer: Unicode letters/digits/marks; invariant lowercase; punctuation separators; sentence/line reset");
-    Console.WriteLine($"Selected on validation: order={order}, backoff={alpha:F1}; vocab={model.VocabularySize}; contexts={model.ContextCount}; model bytes={(modelBytes?.ToString() ?? "unavailable")}");
-    Console.WriteLine($"Test examples={test.Examples}; OOV={test.Oov} ({Pct(test.Oov, test.Examples):F2}%); target coverage={Pct(test.Covered, test.Examples):F2}%; top1={Pct(test.Top1, test.Examples):F2}%; top3={Pct(test.Top3, test.Examples):F2}%");
-    Console.WriteLine($"Unigram baseline: top1={Pct(test.UniTop1, test.Examples):F2}%; top3={Pct(test.UniTop3, test.Examples):F2}%");
-    Console.WriteLine($"Model build ms={build.Elapsed.TotalMilliseconds:F2}; model load ms={(loadMilliseconds?.ToString("F2") ?? "unavailable")}; lookup samples={sample}; median ms={median:F5}; p95 ms={p95:F5}");
-    Console.WriteLine($"Synthetic controlled-context request median ms={requestMedian:F5}; p95 ms={requestP95:F5}; complete test evaluation ms={testTimer.Elapsed.TotalMilliseconds:F2}");
-    Console.WriteLine($"CPU ms={(Process.GetCurrentProcess().TotalProcessorTime-cpuBefore).TotalMilliseconds:F2}; managed delta bytes={GC.GetTotalMemory(false)-allocatedBefore}; working-set delta bytes={Environment.WorkingSet-workingBefore}");
-    Console.WriteLine($"Model output: {(modelOutput is null ? "not requested" : Path.GetFullPath(modelOutput))}");
+    var report = new
+    {
+        schemaVersion = 1,
+        dataset = new
+        {
+            name = "Salesforce WikiText-2 raw",
+            config = "wikitext-2-raw-v1",
+            revision = "b08601e04326c79dfdd32d625aee71d232d685c3",
+            license = "Dataset card reports CC BY-SA 3.0 and GFDL metadata and also CC BY-SA 4.0 text; distribution rights remain unresolved.",
+            preprocessing = "UTF-8 Parquet text rows exported one row per line; Unicode letters/digits/combining marks lowercased invariantly; all punctuation separates tokens; period/exclamation/question/newline reset history; line/row boundaries reset history.",
+            checksums = new
+            {
+                train = "e83889baabc497075506f91975be5fac0d45c5290b6b20582c8cd1e853d0c9f7",
+                validation = "204929b7ff9d6184953f867dedb860e40aa69c078fc1e54b3baaa8fb28511c4c",
+                test = "5f1bea067869d04849c0f975a2b29c4ff47d867f484f5010ea5e861eab246d91"
+            },
+            localFiles = paths
+        },
+        model = new { algorithm = "bounded word n-gram backoff", maximumOrder = order, backoff, vocabularySize = loadedModel.VocabularySize, contextCount = loadedModel.ContextCount, modelBytes },
+        training = new { elapsedMilliseconds = trainTimer.Elapsed.TotalMilliseconds, loadingMilliseconds = loadTimer.Elapsed.TotalMilliseconds },
+        validation = new { selectedBy = "top-3 accuracy, then top-1; ties prefer smaller order then smaller backoff", selectedConfiguration = new { order, backoff }, metrics = ToReport(validationMetrics[$"order-{order}-backoff-{backoff:F1}"]) },
+        test = ToReport(test),
+        benchmark = new
+        {
+            warmupExamples = Math.Min(256, examples.Length),
+            measuredPredictionExamples = latencies.Length,
+            path = "PredictionContextManager eligibility plus NGramModel.Predict; excludes file I/O and WinForms painting",
+            medianMilliseconds = median,
+            p95Milliseconds = p95,
+            cpuMilliseconds = (Process.GetCurrentProcess().TotalProcessorTime - cpuBefore).TotalMilliseconds,
+            managedMemoryDeltaBytes = GC.GetTotalMemory(false) - managedBefore,
+            workingSetDeltaBytes = Environment.WorkingSet - workingBefore,
+            fullTestEvaluationMilliseconds = testTimer.Elapsed.TotalMilliseconds
+        }
+    };
+    File.WriteAllText(resultsPath, JsonSerializer.Serialize(report, new JsonSerializerOptions { WriteIndented = true }));
+    Console.WriteLine($"Evaluation complete. Test examples={test.NGram.Examples}; OOV={test.NGram.OutOfVocabulary} ({test.NGram.OovRate:F2}%); coverage={test.NGram.Coverage:F2}%.");
+    Console.WriteLine($"N-gram top-1/top-3/top-5={test.NGram.Accuracy(test.NGram.Top1):F2}%/{test.NGram.Accuracy(test.NGram.Top3):F2}%/{test.NGram.Accuracy(test.NGram.Top5):F2}% (all eligible).");
+    Console.WriteLine($"Unigram top-1/top-3/top-5={test.Unigram.Accuracy(test.Unigram.Top1):F2}%/{test.Unigram.Accuracy(test.Unigram.Top3):F2}%/{test.Unigram.Accuracy(test.Unigram.Top5):F2}%.");
+    Console.WriteLine($"Prediction latency samples={latencies.Length}; median={median:F5} ms; p95={p95:F5} ms; training={trainTimer.Elapsed.TotalMilliseconds:F2} ms; loading={loadTimer.Elapsed.TotalMilliseconds:F2} ms; model={modelBytes} bytes.");
+    Console.WriteLine($"Skipped first tokens without left context={test.SkippedBeginningTokens}; results={resultsPath}");
     return 0;
 }
-catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidDataException or ArgumentException)
+catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidDataException or ArgumentException or JsonException)
 {
-    Console.Error.WriteLine($"Evaluation failed ({ex.GetType().Name}); input content is not printed."); return 1;
+    Console.Error.WriteLine($"Evaluation failed ({ex.GetType().Name}); split contents are not printed.");
+    return 1;
+}
+finally
+{
+    if (temporaryModel is not null && File.Exists(temporaryModel)) File.Delete(temporaryModel);
 }
 
-static Metrics Evaluate(NGramModel model, string path, double alpha, int order)
+static IReadOnlyList<string> PredictAtBoundary(NGramModel model, PredictionContextManager manager,
+    EvaluationExample example, long version, int order, double backoff)
 {
-    var result = new Metrics();
-    foreach (string line in File.ReadLines(path))
+    var snapshot = new InputContextSnapshot(version, "evaluation-field", example.Context + " ", string.Empty,
+        0, true, InputFieldSensitivity.KnownSafe, false, true);
+    if (!manager.TryUpdate(snapshot) || !manager.Current.CanPredictNextWord) return Array.Empty<string>();
+    return model.Predict(manager.Current.PrecedingText, 5, backoff, order);
+}
+
+static SplitResult Evaluate(NGramModel model, string path, double backoff, int order)
+{
+    var result = new SplitResult();
+    foreach (EvaluationExample example in EvaluationExamples.Read(File.ReadLines(path), () => result.SkippedBeginningTokens++))
     {
-        foreach (string[] words in WordTokenizer.TokenizeSegments(line))
-        for (int i = 1; i < words.Length; i++)
-        {
-            result.Examples++;
-            bool knownTarget = model.ContainsWord(words[i]);
-            if (!knownTarget) result.Oov++;
-            var context = model.Predict(string.Join(' ', words.Take(i)), 3, alpha, order);
-            if (knownTarget && context.Count > 0) result.Covered++;
-            if (context.Count > 0 && context[0] == words[i]) result.Top1++;
-            if (context.Contains(words[i], StringComparer.Ordinal)) result.Top3++;
-            var uni = model.PredictUnigram(3);
-            if (uni.Count > 0 && uni[0] == words[i]) result.UniTop1++;
-            if (uni.Contains(words[i], StringComparer.Ordinal)) result.UniTop3++;
-        }
+        // The shared candidate API receives only the left context; target is consulted only for scoring.
+        var snapshot = new InputContextSnapshot(result.NGram.Examples + 1, "evaluation-field", example.Context + " ",
+            string.Empty, 0, true, InputFieldSensitivity.KnownSafe, false, true);
+        var manager = new PredictionContextManager();
+        IReadOnlyList<string> candidates = manager.TryUpdate(snapshot) && manager.Current.CanPredictNextWord
+            ? model.Predict(manager.Current.PrecedingText, 5, backoff, order)
+            : Array.Empty<string>();
+        IReadOnlyList<string> unigram = model.PredictUnigram(5);
+        bool known = model.ContainsWord(example.Target);
+        result.NGram.Add(example.Target, candidates, known);
+        result.Unigram.Add(example.Target, unigram, known);
+        result.ByContextOrder.GetOrAdd(example.ContextOrder).Add(example.Target, candidates, known);
+        result.UnigramByContextOrder.GetOrAdd(example.ContextOrder).Add(example.Target, unigram, known);
     }
     return result;
 }
-static double Pct(long value, long total) => total == 0 ? 0 : value * 100.0 / total;
-sealed class Metrics { public int Examples, Oov, Covered, Top1, Top3, UniTop1, UniTop3; }
+
+static object ToReport(SplitResult value) => new
+{
+    skippedBeginningTokensWithoutLeftContext = value.SkippedBeginningTokens,
+    ngram = MetricReport(value.NGram),
+    unigramBaseline = MetricReport(value.Unigram),
+    byAvailableContextOrder = value.ByContextOrder.OrderBy(x => x.Key).ToDictionary(x => x.Key.ToString(), x => MetricReport(x.Value)),
+    unigramByAvailableContextOrder = value.UnigramByContextOrder.OrderBy(x => x.Key).ToDictionary(x => x.Key.ToString(), x => MetricReport(x.Value))
+};
+static object MetricReport(TopKMetrics m) => new
+{
+    eligibleExamples = m.Examples, outOfVocabularyTargets = m.OutOfVocabulary,
+    vocabularyCoveragePercent = m.Coverage, oovRatePercent = m.OovRate,
+    top1AccuracyPercentAllEligible = m.Accuracy(m.Top1), top3AccuracyPercentAllEligible = m.Accuracy(m.Top3), top5AccuracyPercentAllEligible = m.Accuracy(m.Top5),
+    top1AccuracyPercentInVocabulary = m.Accuracy(m.Top1, true), top3AccuracyPercentInVocabulary = m.Accuracy(m.Top3, true), top5AccuracyPercentInVocabulary = m.Accuracy(m.Top5, true)
+};
+static double? Percentile(double[] sorted, double p) => sorted.Length == 0 ? null : sorted[Math.Max(0, (int)Math.Ceiling(sorted.Length * p) - 1)];
+
+sealed class SplitResult
+{
+    public TopKMetrics NGram { get; } = new();
+    public TopKMetrics Unigram { get; } = new();
+    public long SkippedBeginningTokens { get; set; }
+    public Dictionary<int, TopKMetrics> ByContextOrder { get; } = new();
+    public Dictionary<int, TopKMetrics> UnigramByContextOrder { get; } = new();
+}
+static class MetricDictionaryExtensions
+{
+    public static TopKMetrics GetOrAdd(this Dictionary<int, TopKMetrics> source, int key)
+    {
+        if (!source.TryGetValue(key, out TopKMetrics? value)) source[key] = value = new TopKMetrics();
+        return value;
+    }
+}
