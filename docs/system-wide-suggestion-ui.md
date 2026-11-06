@@ -40,3 +40,14 @@ The pure UI logic tests verify candidate cap/deduplication, selection wraparound
 No popup creation/show/hide, positioning, rendering, keyboard, or end-to-end latency measurements have been collected. The component is reused rather than recreated per result, but no performance claim is made.
 
 The compatibility matrix currently has no external app run for this UI. Test Notepad first with the production adapter supplying real caret bounds; verify the target retains focus while typing, clicking a candidate behaves as intended, and hiding the popup restores non-topmost state. Then test each DPI/monitor combination and app version before expanding support.
+
+
+## Synthetic visual harness
+
+Run the separate harness on Windows with:
+
+```powershell
+dotnet run --project .\tools\PCWord.WindowsUIHarness\PCWord.WindowsUIHarness.csproj
+```
+
+The button shows three synthetic candidates anchored at the mouse pointer and reports a click without editing any document. This exercises presentation and a basic mouse route only. It does not receive external caret metadata, does not verify focus against another app, does not route keyboard input, and does not substitute for the Notepad integration test.
