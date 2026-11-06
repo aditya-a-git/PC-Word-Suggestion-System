@@ -139,6 +139,12 @@ This stage gates the production input architecture. If caret/context access or s
 
 ---
 
+### Stage 0 evidence update (2026-11-06)
+
+**Status: incomplete; production input architecture remains undecided.** The TSF diagnostic DLL builds in CI and the native safety policy tests pass 2/2. The probe implements activation, focus/context notifications, gated bounded read attempts, selection/caret/InputScope inspection, and per-user COM/profile registration code. It does not implement an authorized write edit session. No versioned interactive Windows application run was performed for this update. Existing owner-reported Notepad/browser notes are not runtime evidence because versions, environment and status logs are absent.
+
+Next gate: in a disposable Windows account, verify service activation and bounded context behavior in Notepad with synthetic text and record Windows/app versions plus status-only outcomes. Verify focus invalidation and safety denies. Only then build a separate TSF `ITfEditSession` experiment with expected-range validation, stale-operation rejection, and post-edit verification. Test actual edits in a controlled host before making any external edit-support claim. Follow `docs/testing-guide.md`; update `docs/compatibility-matrix.md` with measured results. CI compilation and policy tests alone do not satisfy Stage 0's edit or application test exit criteria.
+
 ## Stage 1 — Standalone Dictionary Completion Engine
 
 ### Goal
