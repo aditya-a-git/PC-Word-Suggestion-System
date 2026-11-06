@@ -60,7 +60,7 @@ public sealed class SuggestionPopupUiLogicTests
         var work = new Rectangle(-1600, -200, 1600, 900);
         Rectangle leftToRight = PopupPlacement.Calculate(
             new Rectangle(-5, 100, 2, 20), new Size(300, 120), work);
-        Assert.Equal(-5, leftToRight.Left);
+        Assert.Equal(work.Right - leftToRight.Width, leftToRight.Left);
         Assert.InRange(leftToRight.Left, work.Left, work.Right - leftToRight.Width);
 
         Rectangle rightToLeft = PopupPlacement.Calculate(
