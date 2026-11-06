@@ -129,3 +129,23 @@ When adapter, policy or popup code changes, rerun all matrix rows that change co
 ### Stage 6 implementation verification (2026-10-28)
 
 GitHub Actions run [40702996019](https://github.com/aditya-a-git/PC-Word-Suggestion-System/actions/runs/40702996019) for commit `badf6aeeaf8339b273439aa71186099c450285fa` completed successfully: Release restore and build passed with 0 warnings/errors, the managed suite passed 159/159 tests, the native x64 TSF probe configured and built, and CTest passed 2/2 policy tests. No external app host session was performed. The only external-app observations remain owner reports without dates, exact versions or saved logs.
+
+## Stage 5 WikiText evaluation
+
+Deterministic evaluator tests check top-k denominator semantics, OOV/coverage rates, context-only-before-target example creation and punctuation/row resets. They use small fixtures and do not download a corpus. For real evaluation and pinned hashes, follow docs/stage-5-evaluation.md and data/README.md. The 2026-11-06 retrieval attempt failed at DNS resolution for huggingface.co; no WikiText scores were produced.
+
+## Manual WinForms verification still required
+
+Run on Windows with a generated local model (do not check it in):
+
+1. Build and launch src/PCWord.Stage0 in Release. Confirm startup completes with the local dictionary and model; remove or rename the model temporarily and confirm startup remains usable without next-word suggestions.
+2. Type a two-character partial word from the bundled sample dictionary and verify up to three completion candidates.
+3. Type a known one-token context followed by a space and confirm a next-word candidate appears from the generated model. Type longer context, punctuation and whitespace and confirm suggestions update or clear at boundaries.
+4. Type rapidly and change context before a result is delivered; verify no old candidate is shown or accepted.
+5. Accept with Ctrl+Space or Ctrl+1–3 and verify exact inserted text, spacing, punctuation and caret position.
+6. Test empty input and an unknown token; confirm no crash and an empty or model-backed result as appropriate.
+7. Toggle suggestions off, confirm the popup clears immediately, then turn it on and verify a fresh context is required.
+8. Check sensitive, selected, composing, unavailable and unfocused states; each must show no candidates.
+9. Keep typing during normal operation and confirm the UI remains responsive. Check Performance stats for aggregate UI timings; do not record typed content.
+
+Record Windows version, build commit, model revision, and pass/fail per item. This checklist has not been executed in this environment. Automated tests and CI do not count as interactive UI verification.
