@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <UseWindowsForms>true</UseWindowsForms>
+    <EnableWindowsTargeting>true</EnableWindowsTargeting>
+    <ApplicationHighDpiMode>PerMonitorV2</ApplicationHighDpiMode>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\PCWord.Core\PCWord.Core.csproj" />
+    <ProjectReference Include="..\PCWord.Prediction\PCWord.Prediction.csproj" />
+    <ProjectReference Include="..\PCWord.WindowsIntegration\PCWord.WindowsIntegration.csproj" />
+    <ProjectReference Include="..\PCWord.WindowsUI.Logic\PCWord.WindowsUI.Logic.csproj" />
+  </ItemGroup>
+</Project>
