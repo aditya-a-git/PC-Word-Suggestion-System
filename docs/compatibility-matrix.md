@@ -38,3 +38,18 @@ All external applications remain unsupported for production prediction. A TSF di
 - **Terminals:** unsupported/denied; command-line content may be sensitive, and no terminal edit path is implemented.
 
 Changing adapters, policy, or popup behavior requires rerunning every matrix row that could be affected, using the guide's synthetic-data script and recording per-version/per-field results.
+
+## Controlled TSF runtime verification (2026-11-06)
+
+No application was launched or tested in an interactive Windows TSF session during this feasibility pass. CI builds the diagnostic DLL and runs policy unit tests only. The older owner-reported Notepad/basic Win32 and browser observations remain unverified because no app version, Windows build, date, or retained status report is available.
+
+| Application | Version / Windows build | Architecture | TSF activation | Context / selection / caret | Authorized edit | Result |
+|---|---|---|---|---|---|---|
+| Notepad | Not run in this pass | n/a | Untested | Untested | Not implemented | Unsupported pending runtime test |
+| WordPad | Not run; availability not checked | n/a | Untested | Untested | Not implemented | Untested |
+| Microsoft Word | Not run | n/a | Untested | Untested | Not implemented | Untested |
+| Chrome / Edge | Not run | n/a | Untested | Untested | Not implemented | Untested |
+| Visual Studio Code | Not run | n/a | Untested | Untested | Not implemented | Untested |
+| PCWord owned WinForms editor | Current repository build | x64 CI build; interactive run not performed | Not applicable (in-process adapter) | Implemented/tested under managed contracts | Owned-control explicit edit path only; live GUI not run | Managed coverage only |
+
+The TSF probe has no write edit-session implementation. Do not infer text-edit support from TSF activation or diagnostic read results.
