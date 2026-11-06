@@ -610,6 +610,19 @@ These are examples, not mandatory commit names.
 
 ---
 
+## Dictionary quality expansion (2026-11-06)
+
+**Status: partial; completion criteria not met.** The controlled editor now bundles the processed ESDB en_US vocabulary (79,343 entries) and uses the existing synchronous dictionary loader, prefix index, ranker, coordinator and candidate API. A SHA-256-verifying offline importer and provenance document are present. The existing sample fixture remains available for comparison.
+
+Pending before completion:
+- obtain a licensed, frequency-bearing resource if frequency-aware ranking is required; current entries carry neutral weight 1;
+- run identical expanded-vocabulary and nine-entry performance benchmarks on the current .NET 10 repository;
+- measure held-out dictionary coverage/OOV and prefix suggestion quality on a pinned, legally usable corpus;
+- execute Windows controlled-editor cases, including loading failure, rapid typing, uncommon words, Unicode, case and high-fanout prefixes;
+- inspect the generated result and verify its checksum/output reproducibility from source bytes.
+
+See `docs/dictionary-quality.md` and the dictionary comparison note in `docs/benchmarks.md`. Do not claim this stage complete until these measurements and integration checks have results.
+
 ## 5. Explicitly Deferred Features
 
 Do not make these prerequisites for the first dependable release:
