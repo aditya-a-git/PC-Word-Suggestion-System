@@ -38,6 +38,38 @@ jobs:
       - name: Run native policy tests
         run: ctest --test-dir .\\tools\\PCWord.TsfProbe\\build-ci -C Release --output-on-failure
 
+      - name: Publish controlled-editor evaluation build
+        shell: pwsh
+        run: |
+          $publishDir = Join-Path $env:RUNNER_TEMP "PCWord-evaluation"
+          $archive = Join-Path $env:RUNNER_TEMP "PCWord-controlled-editor-evaluation-win-x64.zip"
+          dotnet publish .\\src\\PCWord.Stage0\\PCWord.Stage0.csproj --configuration Release --runtime win-x64 --self-contained true --output $publishDir
+          if ($LASTEXITCODE -ne 0) { throw "Evaluation publish failed." }
+          if (-not (Test-Path (Join-Path $publishDir "PCWord.Stage0.exe"))) { throw "Expected application executable was not published." }
+          if (-not (Test-Path (Join-Path $publishDir "Dictionary\\esdb-en-US.tsv"))) { throw "Required dictionary asset is missing from the evaluation package." }
+          @"
+          PCWord controlled-editor evaluation build.
+          This is not a production release and does not provide system-wide suggestions.
+          No installer or uninstaller is included. Use synthetic text only.
+          "@ | Set-Content -Path (Join-Path $publishDir "EVALUATION-NOTICE.txt") -Encoding utf8
+          $manifest = Get-ChildItem -Path $publishDir -File -Recurse | Sort-Object FullName | ForEach-Object {
+            $hash = (Get-FileHash -Algorithm SHA256 -LiteralPath $_.FullName).Hash
+            "$hash *$($_.FullName.Substring($publishDir.Length + 1))"
+          }
+          $manifest | Set-Content -Path (Join-Path $publishDir "SHA256SUMS.txt") -Encoding ascii
+          Compress-Archive -Path (Join-Path $publishDir "*") -DestinationPath $archive -Force
+          $archiveHash = (Get-FileHash -Algorithm SHA256 -LiteralPath $archive).Hash
+          "Evaluation ZIP SHA-256: `$archiveHash" | Add-Content -Path $env:GITHUB_STEP_SUMMARY
+          "Artifact: commit $env:GITHUB_SHA (win-x64)" | Add-Content -Path $env:GITHUB_STEP_SUMMARY
+
+      - name: Upload controlled-editor evaluation build
+        uses: actions/upload-artifact@v4
+        with:
+          name: PCWord-controlled-editor-evaluation-win-x64-${{ github.sha }}
+          path: ${{ runner.temp }}\\PCWord-controlled-editor-evaluation-win-x64.zip
+          if-no-files-found: error
+          retention-days: 7
+
       - name: Publish native TSF probe artifact
         uses: actions/upload-artifact@v4
         with:
