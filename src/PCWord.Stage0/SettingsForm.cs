@@ -70,16 +70,19 @@ internal sealed class SettingsForm : Form
         });
         tabs.TabPages.Add(privacy);
 
-        var buttons = new FlowLayoutPanel { Dock = DockStyle.Bottom, AutoSize = true, FlowDirection = FlowDirection.RightToLeft, Padding = new Padding(8) };
+        var footer = new Panel { Dock = DockStyle.Bottom, Height = 76, Padding = new Padding(8) };
+        _message.Dock = DockStyle.Top;
+        var buttons = new FlowLayoutPanel { Dock = DockStyle.Bottom, Height = 34, FlowDirection = FlowDirection.RightToLeft, WrapContents = false };
         var save = new Button { Text = "Save", AutoSize = true, DialogResult = DialogResult.None };
         var cancel = new Button { Text = "Cancel", AutoSize = true, DialogResult = DialogResult.Cancel };
         var defaults = new Button { Text = "Restore defaults", AutoSize = true };
         buttons.Controls.Add(save);
         buttons.Controls.Add(cancel);
         buttons.Controls.Add(defaults);
-        buttons.Controls.Add(_message);
+        footer.Controls.Add(buttons);
+        footer.Controls.Add(_message);
         Controls.Add(tabs);
-        Controls.Add(buttons);
+        Controls.Add(footer);
         AcceptButton = save;
         CancelButton = cancel;
 
