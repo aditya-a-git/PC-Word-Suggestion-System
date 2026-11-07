@@ -10,18 +10,18 @@ public class CandidateRankerTests
     {
         var entries = new[]
         {
-            new DictionaryEntry("program", 90),
-            new DictionaryEntry("progress", 70),
-            new DictionaryEntry("product", 100),
-            new DictionaryEntry("project", 80),
-            new DictionaryEntry("banana", 200)
+            new DictionaryEntry("program", 40),
+            new DictionaryEntry("progress", 50),
+            new DictionaryEntry("product", 35),
+            new DictionaryEntry("project", 45),
+            new DictionaryEntry("banana", 20)
         };
 
         return new CandidateRanker(new PrefixIndex(entries));
     }
 
     [Fact]
-    public void GetSuggestions_RanksByFrequency()
+    public void GetSuggestions_RanksByCommonnessSize()
     {
         var ranker = CreateRanker();
 
@@ -97,12 +97,12 @@ public class CandidateRankerTests
         var suggestions = ranker.GetSuggestions("app");
 
         Assert.Equal(
-            new[] { "apple", "application", "apply" },
+            new[] { "apple", "apply", "application" },
             suggestions.Select(entry => entry.Word));
     }
 
     [Fact]
-    public void GetSuggestions_DeduplicatesCaseInsensitiveWordsKeepingHighestFrequency()
+    public void GetSuggestions_DeduplicatesCaseInsensitiveWordsKeepingBestCommonnessTier()
     {
         var entries = new[]
         {
@@ -116,8 +116,35 @@ public class CandidateRankerTests
         var suggestions = ranker.GetSuggestions("app", 10);
 
         Assert.Equal(2, suggestions.Count);
-        Assert.Equal("APPLE", suggestions[0].Word);
-        Assert.Equal(90, suggestions[0].Frequency);
+        Assert.Equal("apple", suggestions[0].Word);
+        Assert.Equal(50, suggestions[0].CommonnessSize);
         Assert.Equal("application", suggestions[1].Word);
+    }
+
+    [Fact]
+    public void GetSuggestions_UsesPrefixCompletionBeforeVariantAndAlphabeticTies()
+    {
+        var ranker = new CandidateRanker(new PrefixIndex(new[]
+        {
+            new DictionaryEntry("application", DictionaryDialect.All, CommonnessSize: 35, VariantLevel: 0),
+            new DictionaryEntry("apple", DictionaryDialect.All, CommonnessSize: 35, VariantLevel: 3),
+            new DictionaryEntry("apply", DictionaryDialect.All, CommonnessSize: 35, VariantLevel: 0)
+        }));
+
+        Assert.Equal(new[] { "apple", "apply", "application" },
+            ranker.GetSuggestions("app", 10).Select(entry => entry.Word));
+    }
+
+    [Fact]
+    public void GetSuggestions_MissingMetadataIsSafeAndDeterministic()
+    {
+        var ranker = new CandidateRanker(new PrefixIndex(new[]
+        {
+            new DictionaryEntry("zebra"),
+            new DictionaryEntry("zero", CommonnessSize: 35)
+        }));
+
+        Assert.Equal(new[] { "zero", "zebra" }, ranker.GetSuggestions("ze", 10).Select(entry => entry.Word));
+        Assert.Equal(new[] { "zero", "zebra" }, ranker.GetSuggestions("ze", 10).Select(entry => entry.Word));
     }
 }

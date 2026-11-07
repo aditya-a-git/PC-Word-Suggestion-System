@@ -79,17 +79,15 @@ No WikiText-2 results are available. A 2026-11-06 attempt to retrieve the pinned
 The 25,000-sample prediction timing excludes corpus file I/O and WinForms reads, painting, delivery and acceptance. Interactive WinForms verification remains outstanding.
 
 
-## Dictionary expansion comparison status (2026-11-06)
+## Bilingual ESDB dictionary benchmark
 
-The nine-entry sample remains the only measured prefix benchmark. The ESDB-derived vocabulary has 79,343 unique word forms. No timings or memory numbers for it are published here because the workspace cannot run the current repository checkout and the benchmark must be executed against the same .NET 10 build and machine for both inputs.
-
-The benchmark now accepts `--dictionary <path>`:
+The pinned bilingual asset contains 84,057 unique word forms. The benchmark accepts both `--iterations` and `--dictionary <path>` and uses short/common (`co`), exact spelling-prefix (`colo`, `cent`, `organi`), inflection (`trav`), and miss (`zzqx`) scenarios. It reports load/index time, lookup and synthetic coordinator median/p95, and initialization memory deltas.
 
 ```powershell
-dotnet run --project .\tools\PCWord.Benchmark\PCWord.Benchmark.csproj --configuration Release -- --iterations 100000 --dictionary .\artifacts\dictionary\esdb-en-US.tsv
+dotnet run --project .\tools\PCWord.Benchmark\PCWord.Benchmark.csproj --configuration Release -- --iterations 10000 --dictionary .\artifacts\dictionary\esdb-en-bilingual.tsv
 ```
 
-Repeat with the default sample and compare startup/load-index, lookup and synthetic coordinator stages under identical conditions. The current prefix workload is small and uses six fixed prefixes; before reporting high-fanout and long-prefix results, extend the workload with representative known and unknown prefixes and report each group separately. The 79,343-entry count is a data statistic, not a performance measurement.
+The main-branch GitHub Actions workflow runs this command after tests and appends its output to the run summary. The measurements describe one Windows runner and synthetic managed path, not live WinForms latency or a desktop machine's expected performance. The nine-entry fixture remains useful only for a smoke baseline and must not be compared without running it under the same environment.
 
 No dictionary coverage/OOV or top-1/top-3 completion quality was measured. Those require a pinned licensed held-out text corpus; the WikiText Stage 5 evaluator measures next-word model prediction and does not score completion dictionary coverage.
 

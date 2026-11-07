@@ -345,7 +345,7 @@ This stage is the baseline against which contextual prediction will be evaluated
 
 ### Stage 4 implementation record (2026-10-27)
 
-Stage 4 is implemented for the PCWord-owned WinForms editor: its bounded adapter feeds the existing dictionary ranker, current candidates are version/field bound, pause clears and stops context reads, and resume needs a new eligible snapshot. Empty/ineligible states clear the surface. No confidence score was invented; ranking remains frequency-based. The Release build passed with zero warnings/errors and 126 managed tests passed. Native policy CTest passed 2/2. A 100,000-iteration benchmark separately reports dictionary lookup and the synthetic managed end-to-end path in `docs/benchmarks.md`; its nine-entry dictionary and simulated UI do not establish live Windows UI latency or large-dictionary performance. A scoped source search found no network-client/logging/content-write APIs in the normal Core/Prediction/Stage0 path, but no runtime network capture was performed. Stage 4 is complete for the supported local editor code path. External Windows applications remain unsupported, and TSF remains diagnostic-only.
+Stage 4 is implemented for the PCWord-owned WinForms editor: its bounded adapter feeds the existing dictionary ranker, current candidates are version/field bound, pause clears and stops context reads, and resume needs a new eligible snapshot. Empty/ineligible states clear the surface. Dictionary order uses ESDB commonness size and spelling-variant quality, not corpus frequency. The full-dictionary benchmark runs in CI; live Windows UI latency remains unmeasured. A scoped source search found no network-client/logging/content-write APIs in the normal Core/Prediction/Stage0 path, but no runtime network capture was performed. External Windows applications remain unsupported, and TSF remains diagnostic-only.
 
 ---
 ## Stage 5 — Lightweight Local N-Gram Next-Word Prediction
@@ -636,16 +636,16 @@ These are examples, not mandatory commit names.
 
 ## Dictionary quality expansion (2026-11-06)
 
-**Status: partial; completion criteria not met.** The controlled editor now bundles the processed ESDB en_US vocabulary (79,343 entries) and uses the existing synchronous dictionary loader, prefix index, ranker, coordinator and candidate API. A SHA-256-verifying offline importer and provenance document are present. The existing sample fixture remains available for comparison.
+**Status: implementation integrated; CI benchmark and manual validation remain.** The controlled editor now bundles an ESDB size-60 American/British vocabulary with 84,057 unique entries and dialect, variant-group, commonness-size, POS, variant-level, and lemma metadata. A pinned-release Python/SQLite builder and source/license documentation are present. The existing sample fixture remains available for smoke comparison.
 
 Pending before completion:
-- obtain a licensed, frequency-bearing resource if frequency-aware ranking is required; current entries carry neutral weight 1;
-- run identical expanded-vocabulary and nine-entry performance benchmarks on the current .NET 10 repository;
+- do not describe SCOWL commonness tiers as corpus frequency; any future frequency source requires separate licensing and evaluation;
+- collect the full-dictionary benchmark from the current main-branch GitHub Actions run;
 - measure held-out dictionary coverage/OOV and prefix suggestion quality on a pinned, legally usable corpus;
 - execute Windows controlled-editor cases, including loading failure, rapid typing, uncommon words, Unicode, case and high-fanout prefixes;
-- inspect the generated result and verify its checksum/output reproducibility from source bytes.
+- regenerate the asset from the pinned source and compare the output hash.
 
-See `docs/dictionary-quality.md` and the dictionary comparison note in `docs/benchmarks.md`. Do not claim this stage complete until these measurements and integration checks have results.
+See `docs/dictionary-quality.md`, `docs/dictionary-sources.md`, and the benchmark note in `docs/benchmarks.md`. Do not claim this stage complete until the CI measurement and manual integration checks have results.
 
 ## 5. Explicitly Deferred Features
 

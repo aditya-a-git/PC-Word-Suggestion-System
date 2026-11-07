@@ -13,5 +13,10 @@ TestResults/
 build/
 tools/PCWord.TsfProbe/build/
 
+# Local pinned ESDB checkout and regeneration comparison outputs
+/_esdb-source/
+/_regeneration-check/
+__pycache__/
+
 # Locally captured DebugView logs can contain unrelated process output.
 tools/PCWord.CompatReport/logs/

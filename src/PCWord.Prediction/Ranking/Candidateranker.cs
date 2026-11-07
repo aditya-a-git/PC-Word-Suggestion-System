@@ -22,7 +22,11 @@ public sealed class CandidateRanker
             return Array.Empty<DictionaryEntry>();
 
         return _index.FindByPrefix(prefix)
-            .OrderByDescending(entry => entry.Frequency)
+            .OrderBy(entry => entry.CommonnessSize.HasValue ? 0 : entry.LegacyWeight.HasValue ? 1 : 2)
+            .ThenBy(entry => entry.CommonnessSize ?? int.MaxValue)
+            .ThenByDescending(entry => entry.LegacyWeight ?? 0)
+            .ThenBy(entry => Math.Max(0, entry.Word.Length - prefix.Length))
+            .ThenBy(entry => entry.VariantLevel ?? int.MaxValue)
             .ThenBy(entry => entry.Word, StringComparer.OrdinalIgnoreCase)
             .ThenBy(entry => entry.Word, StringComparer.Ordinal)
             .DistinctBy(

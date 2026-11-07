@@ -53,7 +53,7 @@ try
                 prefix, suggestion.Word);
 
             Console.WriteLine(
-                $"{formatted}  (frequency: {suggestion.Frequency})");
+                $"{formatted}  (SCOWL size: {suggestion.CommonnessSize?.ToString() ?? "unknown"}; dialects: {suggestion.Dialects})");
         }
     }
 

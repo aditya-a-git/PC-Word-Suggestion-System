@@ -152,7 +152,7 @@ internal sealed class ControlledEditorForm : Form
         long startedAt = Stopwatch.GetTimestamp();
         try
         {
-            string dictionaryPath = Path.Combine(AppContext.BaseDirectory, "Dictionary", "esdb-en-US.tsv");
+            string dictionaryPath = Path.Combine(AppContext.BaseDirectory, "Dictionary", "esdb-en-bilingual.tsv");
             IReadOnlyList<DictionaryEntry> entries = DictionaryLoader.Load(dictionaryPath);
             return entries.Count == 0 ? null : new CandidateRanker(new PrefixIndex(entries));
         }

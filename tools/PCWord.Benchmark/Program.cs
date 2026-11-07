@@ -6,17 +6,22 @@ using PCWord.Prediction.Dictionary;
 using PCWord.Prediction.Ranking;
 
 const int warmupIterations = 100;
-int iterations = ParseIterations(args);
-if (iterations == 0)
+if (!TryParseOptions(args, out int iterations, out string dictionaryPath))
     return 2;
-string dictionaryPath = args.Contains("--dictionary", StringComparer.Ordinal)
-    ? args[Array.IndexOf(args, "--dictionary") + 1]
-    : Path.Combine(AppContext.BaseDirectory, "Dictionary", "sample.tsv");
 var process = Process.GetCurrentProcess();
+GC.Collect();
+GC.WaitForPendingFinalizers();
+GC.Collect();
+process.Refresh();
+long workingSetBeforeInitialization = process.WorkingSet64;
+long managedHeapBeforeInitialization = GC.GetTotalMemory(forceFullCollection: true);
 long startupStarted = Stopwatch.GetTimestamp();
 IReadOnlyList<DictionaryEntry> entries = DictionaryLoader.Load(dictionaryPath);
 var ranker = new CandidateRanker(new PrefixIndex(entries));
 TimeSpan dictionaryStartup = Stopwatch.GetElapsedTime(startupStarted);
+process.Refresh();
+long workingSetAfterInitialization = process.WorkingSet64;
+long managedHeapAfterInitialization = GC.GetTotalMemory(forceFullCollection: true);
 var metrics = new CompletionMetrics();
 var adapter = new BenchmarkInputAdapter();
 using var coordinator = new DictionaryCompletionCoordinator(adapter, ranker, metrics: metrics);
@@ -28,7 +33,7 @@ coordinator.SuggestionsChanged += (_, update) =>
     metrics.Record(CompletionMetricStage.UiUpdate, Stopwatch.GetElapsedTime(uiStarted));
 };
 
-string[] prefixes = ["pro", "prog", "pre", "pred", "prod", "prx"];
+string[] prefixes = ["co", "colo", "cent", "organi", "trav", "zzqx"];
 for (int index = 0; index < warmupIterations; index++)
 {
     IReadOnlyList<DictionaryEntry> warmup = ranker.GetSuggestions(prefixes[index % prefixes.Length]);
@@ -68,6 +73,8 @@ Console.WriteLine($"Dictionary: {dictionaryPath}, {entries.Count} entries");
 Console.WriteLine($"Warmup iterations: {warmupIterations}; measured iterations per phase: {iterations}");
 Console.WriteLine("End-to-end includes synthetic bounded snapshot construction, context management, dictionary ranking, event delivery, and a synthetic result consumer; it excludes RichTextBox/Win32 calls and actual painting.");
 Console.WriteLine($"Dictionary startup (load + index): {dictionaryStartup.TotalMilliseconds:F3} ms (one sample)");
+Console.WriteLine($"Initialization working set delta: {workingSetAfterInitialization - workingSetBeforeInitialization:+#;-#;0} bytes");
+Console.WriteLine($"Initialization managed heap delta: {managedHeapAfterInitialization - managedHeapBeforeInitialization:+#;-#;0} bytes");
 foreach (CompletionMetricStage stage in new[]
 {
     CompletionMetricStage.LookupOnly,
@@ -93,16 +100,28 @@ static void PrintSummary(CompletionMetricSummary summary)
     Console.WriteLine($"{summary.Stage}: n={summary.SampleCount}, percentile window={summary.WindowSampleCount}, median={median} ms, p95={p95} ms");
 }
 
-static int ParseIterations(string[] arguments)
+static bool TryParseOptions(string[] arguments, out int iterations, out string dictionaryPath)
 {
-    if (arguments.Length == 0)
-        return 1000;
-    if (arguments.Length == 2 && arguments[0] == "--iterations" &&
-        int.TryParse(arguments[1], out int value) && value is >= 100 and <= 100_000)
-        return value;
-    Console.Error.WriteLine("Usage: PCWord.Benchmark [--iterations 100..100000] [--dictionary <path>]");
-    Environment.ExitCode = 2;
-    return 0;
+    iterations = 1000;
+    dictionaryPath = Path.Combine(AppContext.BaseDirectory, "Dictionary", "sample.tsv");
+    for (int index = 0; index < arguments.Length; index++)
+    {
+        if (arguments[index] == "--iterations" && index + 1 < arguments.Length &&
+            int.TryParse(arguments[++index], out int value) && value is >= 100 and <= 100_000)
+        {
+            iterations = value;
+        }
+        else if (arguments[index] == "--dictionary" && index + 1 < arguments.Length)
+        {
+            dictionaryPath = Path.GetFullPath(arguments[++index]);
+        }
+        else
+        {
+            Console.Error.WriteLine("Usage: PCWord.Benchmark [--iterations 100..100000] [--dictionary <path>]");
+            return false;
+        }
+    }
+    return true;
 }
 
 static InputContextSnapshot CreateSyntheticSnapshot(int version, string prefix, CompletionMetrics metrics)

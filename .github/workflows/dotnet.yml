@@ -29,6 +29,14 @@ jobs:
       - name: Run tests
         run: dotnet test .\PCWord.sln --configuration Release --no-build --logger "console;verbosity=normal"
 
+      - name: Benchmark bundled bilingual dictionary
+        shell: pwsh
+        run: |
+          $benchmarkOutput = dotnet run --project .\tools\PCWord.Benchmark\PCWord.Benchmark.csproj --configuration Release --no-build -- --iterations 10000 --dictionary .\artifacts\dictionary\esdb-en-bilingual.tsv
+          if ($LASTEXITCODE -ne 0) { throw "Dictionary benchmark failed." }
+          $benchmarkOutput | Tee-Object -FilePath (Join-Path $env:RUNNER_TEMP "PCWord-dictionary-benchmark.txt")
+          $benchmarkOutput | Add-Content -Path $env:GITHUB_STEP_SUMMARY
+
       - name: Configure native TSF probe
         run: cmake -S .\tools\PCWord.TsfProbe -B .\tools\PCWord.TsfProbe\build-ci -A x64
 
@@ -46,7 +54,7 @@ jobs:
           dotnet publish .\src\PCWord.Stage0\PCWord.Stage0.csproj --configuration Release --runtime win-x64 --self-contained true --output $publishDir
           if ($LASTEXITCODE -ne 0) { throw "Evaluation publish failed." }
           if (-not (Test-Path (Join-Path $publishDir "PCWord.Stage0.exe"))) { throw "Expected application executable was not published." }
-          if (-not (Test-Path (Join-Path $publishDir "Dictionary\esdb-en-US.tsv"))) { throw "Required dictionary asset is missing from the evaluation package." }
+          if (-not (Test-Path (Join-Path $publishDir "Dictionary\esdb-en-bilingual.tsv"))) { throw "Required dictionary asset is missing from the evaluation package." }
           @"
           PCWord controlled-editor evaluation build.
           This is not a production release and does not provide system-wide suggestions.

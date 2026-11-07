@@ -1,0 +1,21 @@
+{
+  "source": "en-wl/wordlist@rel-2026.02.25 (7e99edab8e32f9f9ea2b15f249ca8d4d67237410)",
+  "configuration": "tools/PCWord.DictionaryBuilder/config.json",
+  "commonness_note": "SCOWL size is a vetted commonness tier, not corpus frequency.",
+  "source_rows": 452209,
+  "filtered_unsupported_token": 68943,
+  "filtered_upper_only_rows": 36147,
+  "filtered_nonword_category_rows": 3519,
+  "filtered_proper_noun_rows": 57876,
+  "filtered_sensitive_usage_rows": 213,
+  "unique_entries": 84057,
+  "candidate_unique_words": 131694,
+  "filtered_unique_words": 47637,
+  "american_entries": 81510,
+  "british_ise_entries": 81369,
+  "british_ize_entries": 81383,
+  "variant_groups": 48608,
+  "filtered_out_rows": 166698,
+  "dialect_counts_overlap": true,
+  "variant_group_count_is_unique_esdb_group_ids": true
+}

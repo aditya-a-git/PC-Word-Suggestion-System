@@ -11,6 +11,6 @@
   </ItemGroup>
 
   <ItemGroup>
-    <Content Include="Dictionary/esdb-en-US.tsv" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="Dictionary/esdb-en-bilingual.tsv" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>

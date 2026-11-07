@@ -13,7 +13,7 @@ This does not complete production settings/privacy integration. In particular, t
 
 Implemented for PCWord's own WinForms `RichTextBox`:
 
-- Bounded in-process adapter snapshots feed the existing context manager and local frequency-ranked dictionary. Each result carries its source context version and field identity; stale/equal snapshots are ignored and the UI checks both values before display.
+- Bounded in-process adapter snapshots feed the existing context manager and local ESDB commonness/variant-ranked dictionary. Each result carries its source context version and field identity; stale/equal snapshots are ignored and the UI checks both values before display.
 - The adapter reads no more than 128 UTF-16 units before and 32 after the caret. It suppresses text reads for disabled, unfocused, selected, composing, sensitive, or unavailable states. Explicit acceptance revalidates current context and candidate provenance, edits only the intended prefix, then verifies text and caret.
 - Empty results clear existing candidates. No confidence score was invented; the existing frequency ranking, two-character prefix minimum, and three-candidate cap remain the policy.
 - Pause clears candidates and turns off bounded text acquisition and acceptance. Resume requests a new adapter snapshot; the previous candidate set is not restored.
