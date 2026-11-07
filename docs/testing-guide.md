@@ -200,3 +200,19 @@ dotnet run --project .\tools\PCWord.WindowsUIHarness\PCWord.WindowsUIHarness.csp
 ```
 
 Click **Show sample popup at mouse pointer**. The harness reports candidate clicks but never reads or edits external text. It is suitable for basic rendering and placement inspection only. Real focus preservation, caret placement, DPI/multi-monitor behavior, keyboard routing and external acceptance still require an interactive test with the production adapter.
+
+
+## Settings service and privacy window
+
+Run the managed build and test commands above. Settings-service tests verify that valid updates are persisted before notifications, snapshots do not expose mutable allowlist arrays, invalid updates do not persist or notify, and equivalent settings are a no-op.
+
+For a manual controlled-editor pass:
+
+1. Launch PCWord and open **Settings…**.
+2. Confirm the General checkbox reflects the saved Enabled state.
+3. Toggle it and save. Confirm suggestions stop or resume immediately in the controlled editor; when disabled, pending suggestions and the popup should clear.
+4. Close and relaunch. Confirm the saved state is restored.
+5. Inspect the Privacy, Applications, and Typing & Suggestions tabs. Unsupported external integration, shortcut, personalization, and metrics behavior must be clearly identified as unavailable.
+6. Confirm sensitive-field protections remain independent of the Enabled setting.
+
+This pass does not verify external-app access, legacy registry migration, configurable shortcut registration, or production allowlist enforcement; those features are not implemented. Do not use real sensitive text during testing.
