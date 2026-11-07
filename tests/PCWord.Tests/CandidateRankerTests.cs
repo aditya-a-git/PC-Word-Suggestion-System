@@ -131,7 +131,7 @@ public class CandidateRankerTests
             new DictionaryEntry("apply", DictionaryDialect.All, CommonnessSize: 35, VariantLevel: 0)
         }));
 
-        Assert.Equal(new[] { "apple", "apply", "application" },
+        Assert.Equal(new[] { "apply", "apple", "application" },
             ranker.GetSuggestions("app", 10).Select(entry => entry.Word));
     }
 

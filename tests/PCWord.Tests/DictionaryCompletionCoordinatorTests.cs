@@ -211,11 +211,11 @@ public sealed class DictionaryCompletionCoordinatorTests
 
     private static CandidateRanker CreateRanker() => new(new PrefixIndex(new[]
     {
-        new DictionaryEntry("program", 40),
-        new DictionaryEntry("progress", 30),
-        new DictionaryEntry("project", 20),
-        new DictionaryEntry("propose", 10),
-        new DictionaryEntry("prelude", 5)
+        new DictionaryEntry("program", LegacyWeight: 40),
+        new DictionaryEntry("progress", LegacyWeight: 30),
+        new DictionaryEntry("project", LegacyWeight: 20),
+        new DictionaryEntry("propose", LegacyWeight: 10),
+        new DictionaryEntry("prelude", LegacyWeight: 5)
     }));
 
     private static InputContextSnapshot Snapshot(
