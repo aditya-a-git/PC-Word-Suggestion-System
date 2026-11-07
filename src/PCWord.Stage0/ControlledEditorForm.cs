@@ -21,6 +21,9 @@ internal sealed class ControlledEditorForm : Form
     private readonly Button apply = new() { Text = "Apply explicit edit", AutoSize = true };
     private readonly Button sample = new() { Text = "Load sample text", AutoSize = true };
     private readonly Button performance = new() { Text = "Performance stats", AutoSize = true };
+    private readonly Button settingsButton = new() { Text = "Settings…", AutoSize = true, AccessibleName = "Open PCWord settings" };
+    private readonly UserSettingsService settingsService = new(new JsonUserSettingsStore(Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "PCWord", "settings.json")));
     private readonly SuggestionPopupControl popup = new();
     private readonly CompletionMetrics metrics = new();
     private readonly ControlledEditorInputAdapter inputAdapter;
@@ -42,6 +45,8 @@ internal sealed class ControlledEditorForm : Form
         completionCoordinator = new DictionaryCompletionCoordinator(inputAdapter, ranker, metrics: metrics,
             nextWordModel: nextWordModel);
         completionCoordinator.SuggestionsChanged += CompletionCoordinatorOnSuggestionsChanged;
+        enabled.Checked = settingsService.Current.Enabled;
+        completionCoordinator.SetEnabled(settingsService.Current.Enabled);
 
         Text = "PCWord — Controlled Editor";
         MinimumSize = new Size(760, 520);
@@ -51,7 +56,7 @@ internal sealed class ControlledEditorForm : Form
         externalHotKeyStatus.Text = externalSettings.IsValid
             ? PauseHotKeyStatus.Describe(PauseHotKeyRegistration.Unavailable)
             : externalSettings.Error ?? "External settings are invalid; external context is denied.";
-        toolbar.Controls.Add(sample); toolbar.Controls.Add(performance); toolbar.Controls.Add(enabled); toolbar.Controls.Add(sensitive); toolbar.Controls.Add(externalEnabled); toolbar.Controls.Add(externalHotKeyStatus); toolbar.Controls.Add(replacement); toolbar.Controls.Add(apply);
+        toolbar.Controls.Add(sample); toolbar.Controls.Add(performance); toolbar.Controls.Add(settingsButton); toolbar.Controls.Add(enabled); toolbar.Controls.Add(sensitive); toolbar.Controls.Add(externalEnabled); toolbar.Controls.Add(externalHotKeyStatus); toolbar.Controls.Add(replacement); toolbar.Controls.Add(apply);
         var editorHost = new Panel { Dock = DockStyle.Fill };
         editor.Dock = DockStyle.Fill;
         editorHost.Controls.Add(editor);
@@ -66,7 +71,32 @@ internal sealed class ControlledEditorForm : Form
         editor.Leave += (_, _) => { popup.Hide(); completionCoordinator.Dismiss(); UpdateReport(); };
         editor.KeyDown += Editor_KeyDown;
         sensitive.CheckedChanged += (_, _) => { inputAdapter.Refresh(); UpdateReport(); };
-        enabled.CheckedChanged += (_, _) => { completionCoordinator.SetEnabled(enabled.Checked); UpdateReport(); };
+        settingsService.Changed += (_, args) =>
+        {
+            void ApplySettings()
+            {
+                enabled.Checked = args.Current.Enabled;
+                completionCoordinator.SetEnabled(args.Current.Enabled);
+                if (!args.Current.Enabled)
+                    popup.Hide();
+                UpdateReport();
+            }
+            if (IsHandleCreated && InvokeRequired) BeginInvoke((Action)ApplySettings);
+            else ApplySettings();
+        };
+        enabled.CheckedChanged += (_, _) =>
+        {
+            if (!settingsService.TryUpdate(settingsService.Current with { Enabled = enabled.Checked }, out var error))
+            {
+                enabled.Checked = settingsService.Current.Enabled;
+                MessageBox.Show(this, error ?? "Settings could not be applied.", "Settings", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+        };
+        settingsButton.Click += (_, _) =>
+        {
+            using var dialog = new SettingsForm(settingsService);
+            dialog.ShowDialog(this);
+        };
         externalEnabled.CheckedChanged += (_, _) => ExternalEnabledOnChanged();
         apply.Click += (_, _) => ApplyEdit();
         performance.Click += (_, _) => ShowPerformanceSummary();
