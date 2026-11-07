@@ -36,7 +36,7 @@ public sealed class UserSettingsService
         lock (_gate)
         {
             previous = _current;
-            if (Equals(previous, next))
+            if (AreEqual(previous, next))
             {
                 error = null;
                 return true;
@@ -80,6 +80,11 @@ public sealed class UserSettingsService
             return false;
         }
     }
+
+    private static bool AreEqual(UserSettings left, UserSettings right) =>
+        left.SchemaVersion == right.SchemaVersion && left.Enabled == right.Enabled &&
+        left.Pause == right.Pause && left.Acceptance == right.Acceptance &&
+        left.PersonalizationEnabled == right.PersonalizationEnabled && left.Hosts.SequenceEqual(right.Hosts, StringComparer.OrdinalIgnoreCase);
 
     private static UserSettings Copy(UserSettings value) => value with
     {
