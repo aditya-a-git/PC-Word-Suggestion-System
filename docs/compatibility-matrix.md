@@ -1,5 +1,12 @@
 # Compatibility matrix
 
+## Support boundary
+
+PCWord currently has **no declared production-supported application or installed Windows configuration**. Windows 11 is the initial project target. The exact minimum Windows build/edition has not been established. CI uses a moving `windows-latest` image and builds the diagnostic native probe for x64; this does not establish a product support matrix. Projects target .NET 10 Windows desktop, but no distributable runtime/package has been verified.
+
+The PCWord-owned editor is the only implemented prediction/edit path and remains experimental pending an interactive installed-app pass. All external apps are unsupported for production prediction. Rows below preserve distinctions between automated contracts, owner-reported observations, and actual compatibility verification.
+
+
 Compatibility is recorded per application version and field category. **Observed** means a diagnostic event was seen; it is not production support. **Implemented** applies only to the PCWord-owned editor. Every external text-editing and popup cell remains untested because no production external edit/popup path exists.
 
 | Application/version | Field type | Context access | Caret location | Text insertion | Popup behavior | Sensitive-field behavior | Regression status |
