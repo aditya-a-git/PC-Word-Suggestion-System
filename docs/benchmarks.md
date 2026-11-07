@@ -89,6 +89,24 @@ dotnet run --project .\tools\PCWord.Benchmark\PCWord.Benchmark.csproj --configur
 
 The main-branch GitHub Actions workflow runs this command after tests and appends its output to the run summary. The measurements describe one Windows runner and synthetic managed path, not live WinForms latency or a desktop machine's expected performance. The nine-entry fixture remains useful only for a smoke baseline and must not be compared without running it under the same environment.
 
+### CI measurement (2026-11-07)
+
+GitHub Actions run [207](https://github.com/aditya-a-git/PC-Word-Suggestion-System/actions/runs/42354716963) passed the 194-test suite and benchmarked the 84,057-entry asset on `windows-latest` with .NET 10 Release, 10,000 measured iterations, and a 2,048-sample percentile window.
+
+| Stage / metric | Samples | Median | p95 |
+|---|---:|---:|---:|
+| Dictionary startup (load + index) | 1 | 164.837 ms | n/a (single observation) |
+| Initialization working set delta | 1 | +47,472,640 bytes | n/a |
+| Initialization managed heap delta | 1 | +22,013,768 bytes | n/a |
+| Dictionary lookup only | 10,000 | 0.0153 ms | 1.1535 ms |
+| Synthetic context acquisition | 10,000 | 0.0001 ms | 0.0001 ms |
+| Lookup + ranking + casing | 10,000 | 0.0154 ms | 1.1503 ms |
+| Result delivery | 10,000 | 0.0001 ms | 0.0002 ms |
+| Synthetic result-consumer/UI handoff | 10,000 | 0.0000 ms | 0.0001 ms |
+| Synthetic managed end-to-end | 10,000 | 0.0158 ms | 1.1509 ms |
+
+These are single-run CI observations; the p95 reflects the retained sample window and should not be treated as a stable performance guarantee. Initialization memory is a process-wide before/after delta after forced collections, not peak memory attributable solely to the dictionary.
+
 No dictionary coverage/OOV or top-1/top-3 completion quality was measured. Those require a pinned licensed held-out text corpus; the WikiText Stage 5 evaluator measures next-word model prediction and does not score completion dictionary coverage.
 
 
@@ -104,4 +122,4 @@ The UI logic and WinForms popup have no measured median/p95 display, positioning
 
 ## Release performance status
 
-The table above is the only recorded numerical CPU/memory sample: a synthetic 100,000-iteration run using a nine-entry fixture on a local Windows/.NET 10 environment. It is not a representative install, vocabulary, external-app workflow, or sustained-use result. No duration-based working-set/private-memory/handle/thread trend, real popup latency, or end-to-end latency in a supported external app has been measured. Release performance acceptance remains open; do not infer release thresholds from the smoke baseline.
+Recorded figures include the nine-entry local smoke run above and the 84,057-entry single-run CI benchmark. Neither represents sustained typing, an installed desktop environment, a supported external-app workflow, or live popup behavior. No duration-based working-set/private-memory/handle/thread trend or real popup latency has been measured. Release performance acceptance remains open; do not infer release thresholds from these observations.
