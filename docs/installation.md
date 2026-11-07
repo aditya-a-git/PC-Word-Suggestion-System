@@ -4,6 +4,10 @@
 
 PCWord has no end-user installer or supported installation package. It is not ready for consumer installation. The current application is a controlled-editor development prototype; the TSF DLL is diagnostic-only and must not be registered as a production text service.
 
+## Download the evaluation build
+
+After the Windows workflow passes, its seven-day `PCWord-controlled-editor-evaluation-win-x64` artifact contains a self-contained ZIP for the exact commit. Download it from that Actions run, extract it to a local folder, verify `SHA256SUMS.txt` / the run summary checksum, and launch `PCWord.Stage0.exe`. It is a portable controlled-editor evaluation build; it has no installer, does not register TSF, and does not provide system-wide suggestions. Use synthetic text only.
+
 ## Build and run for development
 
 Validated build instructions are maintained in the root [README](../README.md). The current project targets Windows and .NET 10. Use a Windows machine with the .NET 10 SDK and Windows Desktop targeting/runtime components available.
