@@ -216,3 +216,16 @@ For a manual controlled-editor pass:
 6. Confirm sensitive-field protections remain independent of the Enabled setting.
 
 This pass does not verify external-app access, legacy registry migration, configurable shortcut registration, or production allowlist enforcement; those features are not implemented. Do not use real sensitive text during testing.
+
+
+## Compatibility and sustained-use release pass
+
+No external application is currently production-supported. Perform these checks only after a production adapter exists. Use a disposable Windows account/VM and synthetic text; never type real passwords, messages, customer data, or commands.
+
+For each app/version and field category (Notepad, Word, Chrome, Edge, VS Code), record Windows edition/build, process architecture, app version, field category, PCWord build, test date, and a result for each matrix column. Test focus transitions, caret and popup placement, word completion/next-word prediction, keyboard/mouse acceptance, punctuation/spacing, selections, Unicode, rapid typing, undo/redo, app switching, minimize/restore, pause/resume, DPI changes, password/sensitive denial, allowlist denial, and content-free logs. If a production adapter is absent, record the external row as unsupported/untested; do not run probe observations as proof of support.
+
+For sustained use, record the exact duration and workload. Capture initial/final and periodic working set, private bytes, CPU, handle count, and thread count; record crashes, exceptions, stale popup incidents, latency distribution, settings changes, pause/resume, repeated focus/app switching, and sleep/resume if included. Keep all input synthetic and record no text or candidate values. There is no sustained-use result in the repository yet.
+
+## Packaging and installation checks
+
+No installer or release package exists. Do not describe source builds or the diagnostic DLL artifact as a product installation. Before a future package can be accepted, test clean install, launch, upgrade over an existing version with settings preserved, failed-install rollback, uninstallation and input-method cleanup, settings preservation choice, and reinstallation on a clean Windows image. Record exact OS build, architecture, package hash, exit codes, and post-install/uninstall process/registration state. See [installation.md](installation.md), [uninstallation.md](uninstallation.md), and [release-readiness.md](release-readiness.md) for current limitations and gates.
