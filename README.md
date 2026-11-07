@@ -2,6 +2,8 @@
 
 PCWord is a Windows desktop typing prototype. The PCWord-owned WinForms editor supports frequency-ranked partial-word completion and an optional local n-gram next-word model at eligible word boundaries. Both show up to three candidates and use explicit acceptance, dismissal, and a pause toggle.
 
+**Release status:** development prototype only. No installer or production external-app adapter exists, and external applications are not supported for prediction. See [release readiness](docs/release-readiness.md), [installation limits](docs/installation.md), and [uninstallation limits](docs/uninstallation.md).
+
 ## Build, test, and run
 
 Requirements: Windows, .NET 10 SDK, and the Windows Desktop targeting pack.
