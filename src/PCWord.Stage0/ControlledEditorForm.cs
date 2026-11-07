@@ -14,8 +14,6 @@ internal sealed class ControlledEditorForm : Form
     private readonly RichTextBox editor = new() { Multiline = true, ScrollBars = RichTextBoxScrollBars.Vertical, Dock = DockStyle.Fill, Font = new Font("Consolas", 12) };
     private readonly CheckBox sensitive = new() { Text = "Treat this field as sensitive (context disabled)", AutoSize = true };
     private readonly CheckBox enabled = new() { Text = "Suggestions enabled", AutoSize = true, Checked = true };
-    private readonly CheckBox externalEnabled = new() { Text = "Enable external TSF context (diagnostic only)", AutoSize = true };
-    private readonly Label externalHotKeyStatus = new() { AutoSize = true, Padding = new Padding(4, 6, 4, 0) };
     private readonly Label report = new() { AutoSize = true, MaximumSize = new Size(760, 0), Padding = new Padding(0, 8, 0, 8) };
     private readonly TextBox replacement = new() { Width = 180, PlaceholderText = "Explicit replacement" };
     private readonly Button apply = new() { Text = "Apply explicit edit", AutoSize = true };
@@ -33,11 +31,6 @@ internal sealed class ControlledEditorForm : Form
     private bool nextWordModelUnavailable;
     private string? runtimeNotice;
     private bool updating;
-    private bool updatingExternalSettings;
-    private ExternalIntegrationSettings externalSettings = ExternalIntegrationSettingsStore.LoadOrCreateDefaults();
-    private bool externalPauseHotKeyRegistered;
-    private const int ExternalPauseHotKeyId = 0x5057;
-    private const int WmHotKey = 0x0312;
 
     public ControlledEditorForm()
     {
@@ -59,15 +52,10 @@ internal sealed class ControlledEditorForm : Form
         enabled.Checked = settingsService.Current.Enabled;
         completionCoordinator.SetEnabled(settingsService.Current.Enabled);
 
-        Text = "PCWord — Controlled Editor";
+        Text = "PCWord";
         MinimumSize = new Size(760, 520);
         var toolbar = new FlowLayoutPanel { Dock = DockStyle.Top, AutoSize = true, Padding = new Padding(8), WrapContents = true };
-        externalEnabled.Checked = externalSettings.Enabled;
-        externalEnabled.Enabled = externalSettings.IsValid;
-        externalHotKeyStatus.Text = externalSettings.IsValid
-            ? PauseHotKeyStatus.Describe(PauseHotKeyRegistration.Unavailable)
-            : externalSettings.Error ?? "External settings are invalid; external context is denied.";
-        toolbar.Controls.Add(sample); toolbar.Controls.Add(performance); toolbar.Controls.Add(settingsButton); toolbar.Controls.Add(enabled); toolbar.Controls.Add(sensitive); toolbar.Controls.Add(externalEnabled); toolbar.Controls.Add(externalHotKeyStatus); toolbar.Controls.Add(replacement); toolbar.Controls.Add(apply);
+
         var editorHost = new Panel { Dock = DockStyle.Fill };
         editor.Dock = DockStyle.Fill;
         editorHost.Controls.Add(editor);
@@ -108,7 +96,6 @@ internal sealed class ControlledEditorForm : Form
             using var dialog = new SettingsForm(settingsService);
             dialog.ShowDialog(this);
         };
-        externalEnabled.CheckedChanged += (_, _) => ExternalEnabledOnChanged();
         apply.Click += (_, _) => ApplyEdit();
         performance.Click += (_, _) => ShowPerformanceSummary();
         sample.Click += (_, _) =>
@@ -127,57 +114,12 @@ internal sealed class ControlledEditorForm : Form
 
     protected override void OnHandleCreated(EventArgs e)
     {
-        base.OnHandleCreated(e);
-        externalPauseHotKeyRegistered = RegisterHotKey(Handle, ExternalPauseHotKeyId,
-            ModControl | ModAlt | ModShift | ModNoRepeat, VkP);
-        UpdateExternalHotKeyStatus();
     }
 
     protected override void OnHandleDestroyed(EventArgs e)
     {
-        if (externalPauseHotKeyRegistered)
-        {
-            UnregisterHotKey(Handle, ExternalPauseHotKeyId);
-            externalPauseHotKeyRegistered = false;
-        }
-        base.OnHandleDestroyed(e);
     }
 
-    protected override void WndProc(ref Message m)
-    {
-        if (m.Msg == WmHotKey && m.WParam.ToInt32() == ExternalPauseHotKeyId)
-        {
-            externalEnabled.Checked = !externalEnabled.Checked;
-            return;
-        }
-        base.WndProc(ref m);
-    }
-
-    private void ExternalEnabledOnChanged()
-    {
-        if (updatingExternalSettings || !externalSettings.IsValid)
-            return;
-
-        if (!ExternalIntegrationSettingsStore.TrySetEnabled(externalEnabled.Checked))
-        {
-            updatingExternalSettings = true;
-            externalEnabled.Checked = externalSettings.Enabled;
-            updatingExternalSettings = false;
-            externalHotKeyStatus.Text = "Settings could not be saved; external context is denied.";
-            return;
-        }
-
-        externalSettings = externalSettings with { Enabled = externalEnabled.Checked };
-        UpdateExternalHotKeyStatus();
-    }
-
-    private void UpdateExternalHotKeyStatus()
-    {
-        externalHotKeyStatus.Text = externalSettings.IsValid
-            ? PauseHotKeyStatus.Describe(externalPauseHotKeyRegistered
-                ? PauseHotKeyRegistration.Registered : PauseHotKeyRegistration.Unavailable)
-            : externalSettings.Error ?? "External settings are invalid; external context is denied.";
-    }
 
     private async void Editor_KeyDown(object? sender, KeyEventArgs e)
     {
@@ -366,17 +308,4 @@ report.Text = $"Focus: {focus} | Caret: {caret} | {selected} | Eligible: {eligib
         catch (InvalidOperationException) { MessageBox.Show(this, "Focus the editor and clear any sensitive-field flag before applying an edit.", "Edit unavailable", MessageBoxButtons.OK, MessageBoxIcon.Information); }
     }
 
-    private const uint ModAlt = 0x0001;
-    private const uint ModControl = 0x0002;
-    private const uint ModShift = 0x0004;
-    private const uint ModNoRepeat = 0x4000;
-    private const uint VkP = 0x50;
-
-    [System.Runtime.InteropServices.DllImport("user32.dll", SetLastError = true)]
-    [return: System.Runtime.InteropServices.MarshalAs(System.Runtime.InteropServices.UnmanagedType.Bool)]
-    private static extern bool RegisterHotKey(IntPtr window, int id, uint modifiers, uint virtualKey);
-
-    [System.Runtime.InteropServices.DllImport("user32.dll", SetLastError = true)]
-    [return: System.Runtime.InteropServices.MarshalAs(System.Runtime.InteropServices.UnmanagedType.Bool)]
-    private static extern bool UnregisterHotKey(IntPtr window, int id);
 }
