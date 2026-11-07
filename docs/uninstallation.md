@@ -4,6 +4,8 @@
 
 There is no PCWord installer or uninstaller. The normal controlled-editor app does not install a Windows service or production TSF profile. These steps describe cleaning up a development run only; they are not evidence of a verified product uninstallation.
 
+If using the portable evaluation ZIP, close `PCWord.Stage0.exe` and remove only the extracted evaluation folder. The ZIP does not install or register a TSF component. Preserve `%LOCALAPPDATA%\PCWord\settings.json` and local model data unless you explicitly choose to remove them.
+
 ## Close the development app
 
 1. Close the PCWord controlled-editor window.
