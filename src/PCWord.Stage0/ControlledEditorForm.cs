@@ -55,6 +55,13 @@ internal sealed class ControlledEditorForm : Form
         Text = "PCWord";
         MinimumSize = new Size(760, 520);
         var toolbar = new FlowLayoutPanel { Dock = DockStyle.Top, AutoSize = true, Padding = new Padding(8), WrapContents = true };
+        toolbar.Controls.Add(sample);
+        toolbar.Controls.Add(performance);
+        toolbar.Controls.Add(settingsButton);
+        toolbar.Controls.Add(enabled);
+        toolbar.Controls.Add(sensitive);
+        toolbar.Controls.Add(replacement);
+        toolbar.Controls.Add(apply);
 
         var editorHost = new Panel { Dock = DockStyle.Fill };
         editor.Dock = DockStyle.Fill;
@@ -111,15 +118,6 @@ internal sealed class ControlledEditorForm : Form
         UpdateReport();
         inputAdapter.Refresh();
     }
-
-    protected override void OnHandleCreated(EventArgs e)
-    {
-    }
-
-    protected override void OnHandleDestroyed(EventArgs e)
-    {
-    }
-
 
     private async void Editor_KeyDown(object? sender, KeyEventArgs e)
     {
