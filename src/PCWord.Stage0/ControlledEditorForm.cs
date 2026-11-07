@@ -107,6 +107,10 @@ internal sealed class ControlledEditorForm : Form
         performance.Click += (_, _) => ShowPerformanceSummary();
         sample.Click += (_, _) =>
         {
+            if (editor.TextLength > 0 &&
+                MessageBox.Show(this, "Replace the current editor text with the sample?", "Load sample text",
+                    MessageBoxButtons.YesNo, MessageBoxIcon.Question) != DialogResult.Yes)
+                return;
             editor.Text = "Try typing 'pro' or 'pred' to see dictionary suggestions. This is a controlled-editor demo.";
             editor.SelectionStart = editor.Text.IndexOf("pro", StringComparison.Ordinal);
             editor.SelectionLength = 0;
@@ -130,10 +134,11 @@ internal sealed class ControlledEditorForm : Form
             return;
         }
 
-        int index = e.Control && e.KeyCode == Keys.Space ? 0 :
-            e.Control && e.KeyCode is Keys.D1 or Keys.NumPad1 ? 0 :
-            e.Control && e.KeyCode is Keys.D2 or Keys.NumPad2 ? 1 :
-            e.Control && e.KeyCode is Keys.D3 or Keys.NumPad3 ? 2 : -1;
+        bool exactControlChord = e.Control && !e.Alt && !e.Shift;
+        int index = exactControlChord && e.KeyCode == Keys.Space ? 0 :
+            exactControlChord && e.KeyCode is Keys.D1 or Keys.NumPad1 ? 0 :
+            exactControlChord && e.KeyCode is Keys.D2 or Keys.NumPad2 ? 1 :
+            exactControlChord && e.KeyCode is Keys.D3 or Keys.NumPad3 ? 2 : -1;
         if (index < 0 || index >= currentCandidates.Count)
             return;
 
@@ -148,7 +153,8 @@ internal sealed class ControlledEditorForm : Form
         try
         {
             string dictionaryPath = Path.Combine(AppContext.BaseDirectory, "Dictionary", "esdb-en-US.tsv");
-            return new CandidateRanker(new PrefixIndex(DictionaryLoader.Load(dictionaryPath)));
+            IReadOnlyList<DictionaryEntry> entries = DictionaryLoader.Load(dictionaryPath);
+            return entries.Count == 0 ? null : new CandidateRanker(new PrefixIndex(entries));
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidDataException)
         {
