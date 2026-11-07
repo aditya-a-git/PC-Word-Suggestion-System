@@ -41,7 +41,7 @@ jobs:
       - name: Publish native TSF probe artifact
         uses: actions/upload-artifact@v4
         with:
-          name: PCWordTsfProbe-win-x64
+          name: diagnostic-PCWordTsfProbe-win-x64
           path: .\tools\PCWord.TsfProbe\build-ci\Release\PCWordTsfProbe.dll
           if-no-files-found: error
           retention-days: 7
