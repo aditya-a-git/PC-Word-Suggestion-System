@@ -29,6 +29,9 @@ internal sealed class ControlledEditorForm : Form
     private readonly ControlledEditorInputAdapter inputAdapter;
     private readonly DictionaryCompletionCoordinator completionCoordinator;
     private IReadOnlyList<string> currentCandidates = Array.Empty<string>();
+    private bool dictionaryUnavailable;
+    private bool nextWordModelUnavailable;
+    private string? runtimeNotice;
     private bool updating;
     private bool updatingExternalSettings;
     private ExternalIntegrationSettings externalSettings = ExternalIntegrationSettingsStore.LoadOrCreateDefaults();
@@ -39,12 +42,20 @@ internal sealed class ControlledEditorForm : Form
     public ControlledEditorForm()
     {
         CandidateRanker? loadedRanker = CreateRanker(metrics);
+        dictionaryUnavailable = loadedRanker is null;
         CandidateRanker ranker = loadedRanker ?? new CandidateRanker(new PrefixIndex(Array.Empty<DictionaryEntry>()));
         inputAdapter = new ControlledEditorInputAdapter(editor, () => sensitive.Checked, metrics);
         NGramModel? nextWordModel = LoadLocalNextWordModel();
+        nextWordModelUnavailable = nextWordModel is null;
         completionCoordinator = new DictionaryCompletionCoordinator(inputAdapter, ranker, metrics: metrics,
             nextWordModel: nextWordModel);
         completionCoordinator.SuggestionsChanged += CompletionCoordinatorOnSuggestionsChanged;
+        completionCoordinator.PredictionFailed += (_, _) =>
+        {
+            runtimeNotice = "Prediction is temporarily unavailable; text editing remains available.";
+            currentCandidates = Array.Empty<string>();
+            popup.Hide();
+        };
         enabled.Checked = settingsService.Current.Enabled;
         completionCoordinator.SetEnabled(settingsService.Current.Enabled);
 
@@ -227,6 +238,7 @@ internal sealed class ControlledEditorForm : Form
                 return;
 
             currentCandidates = args.Candidates;
+            runtimeNotice = null;
             if (!completionCoordinator.IsEnabled || args.Candidates.Count == 0 ||
                 !editor.Focused || args.CaretBounds is null)
             {
@@ -253,6 +265,12 @@ internal sealed class ControlledEditorForm : Form
             }
             y = Math.Clamp(y, 0, Math.Max(0, host.ClientSize.Height - popup.Height));
             popup.ShowSuggestions(args.Candidates, new Point(x, y));
+        }
+        catch (Exception)
+        {
+            currentCandidates = Array.Empty<string>();
+            popup.Hide();
+            runtimeNotice = "Suggestion display is temporarily unavailable; text editing remains available.";
         }
         finally
         {
@@ -300,6 +318,12 @@ internal sealed class ControlledEditorForm : Form
             bool eligible = snapshot is { ContextAvailable: true, HasFocus: true,
                 Sensitivity: InputFieldSensitivity.KnownSafe, SelectionLength: 0, IsComposing: false };
 report.Text = $"Focus: {focus} | Caret: {caret} | {selected} | Eligible: {eligible} | Context: {(snapshot?.ContextAvailable == true ? "bounded" : "unavailable")}\nVersion: {snapshot?.Version.ToString() ?? "n/a"} | Suggestions enabled: {enabled.Checked} | Sensitive: {sensitive.Checked} | Composition: {snapshot?.IsComposing == true}\nCtrl+Space / Ctrl+1–3 accepts; Esc dismisses. Owned editor only; external apps unsupported. TSF probe is diagnostic only; no external insertion or popup.";
+            if (dictionaryUnavailable)
+                report.Text += "\nDictionary unavailable; word completion is disabled.";
+            if (nextWordModelUnavailable)
+                report.Text += "\nNo local next-word model is available.";
+            if (runtimeNotice is not null)
+                report.Text += $"\n{runtimeNotice}";
         }
         finally { updating = false; }
     }
