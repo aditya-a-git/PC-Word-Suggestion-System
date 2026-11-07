@@ -282,7 +282,19 @@ internal sealed class ControlledEditorForm : Form
 
     private async Task AcceptSuggestionAsync(int index)
     {
-        TextEditResult result = await completionCoordinator.AcceptAsync(index);
+        TextEditResult result;
+        try
+        {
+            result = await completionCoordinator.AcceptAsync(index);
+        }
+        catch (Exception ex) when (ex is not OutOfMemoryException and not AccessViolationException)
+        {
+            currentCandidates = Array.Empty<string>();
+            popup.Hide();
+            runtimeNotice = "The suggestion could not be applied; the editor text was left unchanged.";
+            UpdateReport();
+            return;
+        }
         popup.Hide();
         if (result.WasApplied)
         {
