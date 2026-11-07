@@ -1,5 +1,14 @@
 # Windows integration status
 
+## Settings and privacy controls (partial)
+
+The controlled-editor executable now opens a dedicated Settings window backed by `UserSettingsService` and `JsonUserSettingsStore`. The persisted Enabled value is applied to the suggestion coordinator; disabling hides the popup and invalidates pending suggestion state. A service update is validated and saved before notification, and a failed save leaves the old runtime value in place.
+
+The UI describes current privacy behavior and explicitly marks external application permissions, prediction-mode selection, personalization, metrics, and configurable runtime shortcuts unavailable where this build has no verified enforcement path. Settings schema version 1 remains backward compatible. Registry-backed diagnostic TSF values have not been migrated.
+
+This does not complete production settings/privacy integration. In particular, the executable-name list is not a production external-app security boundary, and the TSF probe is not a production adapter. See [settings-and-privacy.md](settings-and-privacy.md) for implemented behavior, migration limits, and remaining gates.
+
+
 ## Stage 4: controlled-editor dictionary completion
 
 Implemented for PCWord's own WinForms `RichTextBox`:
