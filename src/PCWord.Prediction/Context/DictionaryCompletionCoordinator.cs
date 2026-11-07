@@ -58,6 +58,7 @@ public sealed class DictionaryCompletionCoordinator : IDisposable
     }
 
     public event EventHandler<CompletionUpdatedEventArgs>? SuggestionsChanged;
+    public event EventHandler? PredictionFailed;
 
     public PredictionContext CurrentContext => _contextManager.Current;
 
@@ -168,6 +169,14 @@ public sealed class DictionaryCompletionCoordinator : IDisposable
                     .Select(word => FormatNextWordCasing(context.PrecedingText, word)).ToArray()
                 : _ranker.GetSuggestions(context.Prefix, SuggestionState.MaximumSuggestions)
                     .Select(entry => SuggestionFormatter.MatchPrefixCasing(context.Prefix, entry.Word)).ToArray();
+        }
+        catch (Exception)
+        {
+            // A prediction failure must not escape a RichTextBox change/focus event.
+            // Drop this result and keep normal editing available.
+            candidates = Array.Empty<string>();
+            try { PredictionFailed?.Invoke(this, EventArgs.Empty); }
+            catch (Exception) { /* A notification failure must not break editing either. */ }
         }
         finally
         {
