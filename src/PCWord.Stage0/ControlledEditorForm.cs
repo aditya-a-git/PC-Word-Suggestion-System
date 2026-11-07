@@ -238,7 +238,8 @@ internal sealed class ControlledEditorForm : Form
                 return;
 
             currentCandidates = args.Candidates;
-            runtimeNotice = null;
+            if (args.Candidates.Count > 0)
+                runtimeNotice = null;
             if (!completionCoordinator.IsEnabled || args.Candidates.Count == 0 ||
                 !editor.Focused || args.CaretBounds is null)
             {
