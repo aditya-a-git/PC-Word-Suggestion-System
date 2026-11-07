@@ -41,7 +41,7 @@ internal sealed class SettingsForm : Form
         {
             Dock = DockStyle.Fill,
             AutoSize = false,
-            Text = "PCWord processes bounded text locally in its own editor. Sensitive fields are rejected by the input context policy. Typed text and candidates are not written to settings or diagnostic logs.\r\n\r\nThe TSF probe is diagnostic only; PCWord does not currently provide production external-app context reading or insertion. No setting in this window can enable password-field access. Personalization and metrics controls are unavailable because those behaviors are not implemented as user-configurable runtime features."
+            Text = "The editor processes only bounded context locally. It does not send text over the network or save documents or prediction context in settings. The sensitive-field control disables context collection.\r\n\r\nNo raw keystrokes are logged. Settings contain configuration only. Prediction stays available offline."
         });
         tabs.TabPages.Add(general);
         tabs.TabPages.Add(new TabPage("Typing & Suggestions")
@@ -52,19 +52,7 @@ internal sealed class SettingsForm : Form
                 new Label
                 {
                     Dock = DockStyle.Fill,
-                    Text = "Suggestions are produced only by the capabilities present in this build. Prediction-mode selection, suggestion count, and configurable keyboard shortcuts are not currently exposed because the runtime does not yet apply those settings."
-                }
-            }
-        });
-        tabs.TabPages.Add(new TabPage("Applications")
-        {
-            Padding = new Padding(14),
-            Controls =
-            {
-                new Label
-                {
-                    Dock = DockStyle.Fill,
-                    Text = "System-wide application allowlisting is unavailable. The current TSF probe is diagnostic-only and is not a production input adapter."
+                    Text = "Partial-word completion uses the installed local dictionary. Next-word prediction is available when a local model is present. Up to three suggestions are shown; Ctrl+Space accepts the first and Ctrl+1–3 accepts a numbered suggestion. Mode and count selection are not currently configurable."
                 }
             }
         });
