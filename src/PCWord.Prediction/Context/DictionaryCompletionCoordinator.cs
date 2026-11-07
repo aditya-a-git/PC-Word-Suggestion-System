@@ -176,7 +176,7 @@ public sealed class DictionaryCompletionCoordinator : IDisposable
             // Drop this result and keep normal editing available.
             candidates = Array.Empty<string>();
             try { PredictionFailed?.Invoke(this, EventArgs.Empty); }
-            catch (Exception ex) when (ex is not OutOfMemoryException and not AccessViolationException) { /* A notification failure must not break editing either. */ }
+            catch (Exception notificationException) when (notificationException is not OutOfMemoryException and not AccessViolationException) { /* A notification failure must not break editing either. */ }
         }
         finally
         {
