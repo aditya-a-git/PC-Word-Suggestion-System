@@ -110,7 +110,14 @@ internal sealed class ControlledEditorInputAdapter : IInputAdapter, IDisposable
                     completion.TrySetResult(new TextEditResult(TextEditStatus.Cancelled));
                     return;
                 }
-                completion.TrySetResult(ApplyOnEditorThread(request, cancellationToken));
+                try
+                {
+                    completion.TrySetResult(ApplyOnEditorThread(request, cancellationToken));
+                }
+                catch (Exception ex) when (ex is not OutOfMemoryException and not AccessViolationException)
+                {
+                    completion.TrySetResult(new TextEditResult(TextEditStatus.Failed));
+                }
             }));
         }
         catch (InvalidOperationException)
