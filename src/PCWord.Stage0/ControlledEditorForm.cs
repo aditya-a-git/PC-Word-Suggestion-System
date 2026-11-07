@@ -267,7 +267,7 @@ internal sealed class ControlledEditorForm : Form
             y = Math.Clamp(y, 0, Math.Max(0, host.ClientSize.Height - popup.Height));
             popup.ShowSuggestions(args.Candidates, new Point(x, y));
         }
-        catch (Exception)
+        catch (Exception ex) when (ex is not OutOfMemoryException and not AccessViolationException)
         {
             currentCandidates = Array.Empty<string>();
             popup.Hide();
@@ -291,7 +291,7 @@ internal sealed class ControlledEditorForm : Form
         {
             currentCandidates = Array.Empty<string>();
             popup.Hide();
-            runtimeNotice = "The suggestion could not be applied; the editor text was left unchanged.";
+            runtimeNotice = "The suggestion could not be applied or verified.";
             UpdateReport();
             return;
         }
