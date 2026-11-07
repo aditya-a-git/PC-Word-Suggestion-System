@@ -102,3 +102,8 @@ No end-to-end production adapter latency or sustained-typing measurements are av
 ## System-wide popup measurements
 
 The UI logic and WinForms popup have no measured median/p95 display, positioning, selection, hide, or sustained-use latency. CI verifies the pure placement/state tests but does not show the native window. The popup is reused by its controller, but no performance result is claimed. End-to-end measurement must wait until a production input adapter sends real caret updates and the popup is manually verified in a Windows host.
+
+
+## Release performance status
+
+The table above is the only recorded numerical CPU/memory sample: a synthetic 100,000-iteration run using a nine-entry fixture on a local Windows/.NET 10 environment. It is not a representative install, vocabulary, external-app workflow, or sustained-use result. No duration-based working-set/private-memory/handle/thread trend, real popup latency, or end-to-end latency in a supported external app has been measured. Release performance acceptance remains open; do not infer release thresholds from the smoke baseline.
