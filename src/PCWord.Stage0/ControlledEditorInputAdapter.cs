@@ -210,9 +210,17 @@ internal sealed class ControlledEditorInputAdapter : IInputAdapter, IDisposable
             PublishSnapshot();
     }
 
-    private void EditorOnHandleCreated(object? sender, EventArgs args) => _imeObserver.AttachIfCreated();
+    private void EditorOnHandleCreated(object? sender, EventArgs args)
+    {
+        _imeObserver.AttachIfCreated();
+        PublishSnapshot();
+    }
 
-    private void EditorOnHandleDestroyed(object? sender, EventArgs args) => _imeObserver.Detach();
+    private void EditorOnHandleDestroyed(object? sender, EventArgs args)
+    {
+        _imeObserver.Detach();
+        PublishSnapshot();
+    }
 
     private void OnCompositionChanged(bool isComposing)
     {
@@ -231,12 +239,20 @@ internal sealed class ControlledEditorInputAdapter : IInputAdapter, IDisposable
             throw new InvalidOperationException("The input context version is exhausted.");
 
         long startedAt = Stopwatch.GetTimestamp();
-        _version++;
-        _latestSnapshot = CreateSnapshot(_version, startedAt);
+        long nextVersion = _version + 1;
+        InputContextSnapshot snapshot = CreateSnapshot(nextVersion, startedAt);
         _metrics.Record(CompletionMetricStage.ContextAcquisition, Stopwatch.GetElapsedTime(startedAt));
-        if (!_latestSnapshot.ContextAvailable)
+
+        // RichTextBox can raise TextChanged and SelectionChanged for a single edit.
+        // Keep the current version/candidate set when the actual caret context did not change.
+        if (_latestSnapshot is not null && IsSameContext(_latestSnapshot, snapshot))
+            return;
+
+        _version = nextVersion;
+        _latestSnapshot = snapshot;
+        if (!snapshot.ContextAvailable)
             ClearCandidates();
-        ContextChanged?.Invoke(this, new InputContextChangedEventArgs(_latestSnapshot));
+        ContextChanged?.Invoke(this, new InputContextChangedEventArgs(snapshot));
     }
 
     private InputContextSnapshot CreateSnapshot(long version, long startedAt)
