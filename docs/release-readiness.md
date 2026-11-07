@@ -60,9 +60,9 @@ Do not register the probe or expose it as a production input method in a user re
 
 ## Packaging and release pipeline
 
-CI currently restores and builds the .NET solution in Release, runs managed tests, builds the x64 native TSF probe, runs native policy tests, and uploads the probe DLL as a short-retention CI artifact. The uploaded DLL is a diagnostic artifact, not an installer or release package.
+CI restores and builds the .NET solution in Release, runs managed tests, builds the x64 native TSF probe, and runs native policy tests. After those steps pass, it is configured to publish a commit-stamped, self-contained controlled-editor evaluation ZIP and a separately labeled diagnostic probe DLL, both with short retention. The evaluation ZIP includes a notice and file hashes; it is not a production release, installer, or evidence of external-app compatibility. This new packaging step has not yet been validated by a workflow run.
 
-No packaging strategy is selected. MSIX, MSI, and a per-user installer must not be chosen until production TSF registration and activation requirements are known. No install, upgrade, uninstall, shortcut, startup, settings-migration, or rollback behavior has been verified. No release artifact, versioned package, release notes, or checksum is produced.
+No production packaging strategy is selected. MSIX, MSI, and a per-user installer must not be chosen until production TSF registration and activation requirements are known. No install, upgrade, uninstall, shortcut, startup, settings-migration, or rollback behavior has been verified. No consumer release artifact or release notes are produced.
 
 The real-corpus license review, repository-wide license selection, and production dictionary provenance are also open. Do not distribute the sample or development artifacts as a consumer release without resolving those items.
 
