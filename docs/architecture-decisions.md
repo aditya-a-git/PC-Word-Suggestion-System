@@ -105,15 +105,15 @@
 
 ## ADR-0009: bounded local n-gram backoff for owned-editor next-word suggestions
 
-**Status:** Implemented; corpus quality evaluation and interactive Windows UI verification remain incomplete.
+**Status:** Implemented; pinned corpus evaluation is complete. Interactive Windows UI verification with a generated model remains outstanding.
 
-**Decision.** Extend the existing prediction coordinator only for eligible word-boundary snapshots. Partial-word completion remains on the dictionary ranker. The model uses invariant-lowercase Unicode word tokens, resets history at line and sentence-ending boundaries, and returns up to three deterministic candidates from a trigram/bigram/unigram backoff score. Validation selects n-gram order and backoff factor; ties are resolved by count and then ordinal token order. Vocabulary is capped at 20,000, context keys at 250,000 per order, and each context stores at most 32 continuations. The serialized local model is capped at 128 MiB on load. There is no generated model bundled with the application.
+**Decision.** Extend the existing prediction coordinator only for eligible word-boundary snapshots. Partial-word completion remains on the dictionary ranker. The model uses invariant-lowercase Unicode word tokens, resets history at line and sentence-ending boundaries, and returns up to three deterministic candidates from interpolated trigram/bigram/unigram scores. Validation selects n-gram order and interpolation weight; ties prefer smaller order and then smaller weight. Vocabulary is capped at 50,000, context keys at 250,000 per order, and each context stores at most 32 continuations. The serialized local model is capped at 128 MiB on load. No generated model is bundled.
 
 The optional model is loaded from `%LOCALAPPDATA%\PCWord\ngram-model.json`. Candidate acceptance permits a zero-length expected prefix only when the current owned-editor snapshot still has a safe word boundary; the same current-candidate, field, version, context, and post-edit verification checks apply. A following punctuation mark or whitespace remains after insertion. No confidence score is fabricated.
 
-**Data/license.** Use only the pinned public WikiText split described in `data/README.md`; the card metadata has a license conflict, so neither corpus nor derived model is redistributed. Validation chooses only order/backoff; test is evaluated once. The public data could not be downloaded in the current implementation environment, so no model-quality claim is made.
+**Data/license.** Use only the pinned public WikiText split described in `data/README.md`; the card metadata has a license conflict, so neither corpus nor derived model is redistributed. Validation chooses order/interpolation weight; test is scored after selection. On the pinned WikiText-2 test split, the selected model reached 16.29% top-1 and 25.15% top-3, versus 7.27% and 13.73% for the unigram baseline. Wikipedia prose does not establish conversational or personalized quality.
 
-**Consequences.** Prediction stays local/offline, text-free aggregate instrumentation is reused, and the existing controlled editor is the only supported edit surface. Wikipedia prose may not represent conversational, technical, or personal writing. Cross-application support remains unsupported. Stage 5 exit criteria stay open until fixed-split results and Windows UI verification are recorded.
+**Consequences.** Prediction stays local/offline, text-free aggregate instrumentation is reused, and the existing controlled editor is the only supported edit surface. Wikipedia prose may not represent conversational, technical, or personal writing. Cross-application support remains unsupported. Fixed-split evaluation is complete; Windows UI verification remains outstanding.
 
 
 ## ADR-0010: Observation-only compatibility report (2026-10-28)

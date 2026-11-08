@@ -26,15 +26,15 @@ try
     TimeSpan cpuBefore = Process.GetCurrentProcess().TotalProcessorTime;
 
     var trainTimer = Stopwatch.StartNew();
-    NGramModel model = NGramModel.Train(File.ReadLines(paths[0]));
+    NGramModel? model = NGramModel.Train(File.ReadLines(paths[0]));
     trainTimer.Stop();
 
     var validationMetrics = new Dictionary<string, SplitResult>(StringComparer.Ordinal);
     (int order, double backoff) = (new[] { 1, 2, 3 }
-        .SelectMany(candidateOrder => new[] { .2, .4, .6, .8 }.Select(candidateBackoff =>
+        .SelectMany(candidateOrder => new[] { .2, .4, .6, .8, 1.0 }.Select(candidateBackoff =>
         {
             SplitResult score = Evaluate(model, paths[1], candidateBackoff, candidateOrder);
-            validationMetrics[$"order-{candidateOrder}-backoff-{candidateBackoff:F1}"] = score;
+            validationMetrics[$"order-{candidateOrder}-weight-{candidateBackoff:F1}"] = score;
             return (Order: candidateOrder, Backoff: candidateBackoff, Score: score);
         }))
         .OrderByDescending(x => x.Score.NGram.Top3)
@@ -49,9 +49,17 @@ try
         : temporaryModel = Path.Combine(Path.GetTempPath(), $"pcword-evaluation-{Guid.NewGuid():N}.json");
     Directory.CreateDirectory(Path.GetDirectoryName(modelPath)!);
     model.Save(modelPath);
+    model = null;
+    GC.Collect();
+    GC.WaitForPendingFinalizers();
+    GC.Collect();
+    long modelLoadManagedBefore = GC.GetTotalMemory(forceFullCollection: true);
+    long modelLoadWorkingSetBefore = Environment.WorkingSet;
     var loadTimer = Stopwatch.StartNew();
     NGramModel loadedModel = NGramModel.Load(modelPath);
     loadTimer.Stop();
+    long modelLoadManagedDelta = GC.GetTotalMemory(forceFullCollection: true) - modelLoadManagedBefore;
+    long modelLoadWorkingSetDelta = Environment.WorkingSet - modelLoadWorkingSetBefore;
     long modelBytes = new FileInfo(modelPath).Length;
     string bundledDictionaryPath = Path.Combine(AppContext.BaseDirectory, "Dictionary", "sample.tsv");
     int? bundledDictionaryEntries = File.Exists(bundledDictionaryPath) ? DictionaryLoader.Load(bundledDictionaryPath).Count : null;
@@ -100,12 +108,12 @@ try
                 validation = "204929b7ff9d6184953f867dedb860e40aa69c078fc1e54b3baaa8fb28511c4c",
                 test = "5f1bea067869d04849c0f975a2b29c4ff47d867f484f5010ea5e861eab246d91"
             },
-            localFiles = paths
+            localFiles = paths.Select(path => Path.GetFileName(path)).ToArray()
         },
-        model = new { algorithm = "bounded word n-gram backoff", maximumOrder = order, backoff, vocabularySize = loadedModel.VocabularySize, contextCount = loadedModel.ContextCount, modelBytes },
+        model = new { algorithm = "bounded interpolated word n-gram", maximumOrder = order, interpolationWeight = backoff, vocabularySize = loadedModel.VocabularySize, contextCount = loadedModel.ContextCount, modelBytes },
         completionDictionaryFixture = new { entries = bundledDictionaryEntries, usedForQualityMetrics = false, note = "The bundled sample dictionary is a synthetic demo fixture and is not used by next-word evaluation." },
-        training = new { elapsedMilliseconds = trainTimer.Elapsed.TotalMilliseconds, loadingMilliseconds = loadTimer.Elapsed.TotalMilliseconds },
-        validation = new { selectedBy = "top-3 accuracy, then top-1; ties prefer smaller order then smaller backoff", selectedConfiguration = new { order, backoff }, metrics = ToReport(validationMetrics[$"order-{order}-backoff-{backoff:F1}"]) },
+        training = new { elapsedMilliseconds = trainTimer.Elapsed.TotalMilliseconds, loadingMilliseconds = loadTimer.Elapsed.TotalMilliseconds, modelLoadManagedHeapDeltaBytes = modelLoadManagedDelta, modelLoadWorkingSetDeltaBytes = modelLoadWorkingSetDelta },
+        validation = new { selectedBy = "top-3 accuracy, then top-1; ties prefer smaller order then smaller interpolation weight", selectedConfiguration = new { order, interpolationWeight = backoff }, metrics = ToReport(validationMetrics[$"order-{order}-weight-{backoff:F1}"]) },
         test = ToReport(test),
         benchmark = new
         {
@@ -150,6 +158,7 @@ static IReadOnlyList<string> PredictAtBoundary(NGramModel model, PredictionConte
 static SplitResult Evaluate(NGramModel model, string path, double backoff, int order)
 {
     var result = new SplitResult();
+    var manager = new PredictionContextManager();
     foreach (EvaluationExample example in EvaluationExamples.Read(File.ReadLines(path), () => result.SkippedBeginningTokens++))
     {
         if (example.Context.Length + 1 > InputContextSnapshot.MaximumTextBeforeCaret)
@@ -160,7 +169,6 @@ static SplitResult Evaluate(NGramModel model, string path, double backoff, int o
         // The shared candidate API receives only the left context; target is consulted only for scoring.
         var snapshot = new InputContextSnapshot(result.NGram.Examples + 1, "evaluation-field", example.Context + " ",
             string.Empty, 0, true, InputFieldSensitivity.KnownSafe, false, true);
-        var manager = new PredictionContextManager();
         IReadOnlyList<string> candidates = manager.TryUpdate(snapshot) && manager.Current.CanPredictNextWord
             ? model.Predict(manager.Current.PrecedingText, 5, backoff, order)
             : Array.Empty<string>();

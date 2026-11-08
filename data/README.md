@@ -44,7 +44,7 @@ Pinned files and SHA-256 values shown by the pinned Hugging Face file pages:
 | validation | `wikitext-2-raw-v1/validation-00000-of-00001.parquet` | `204929b7ff9d6184953f867dedb860e40aa69c078fc1e54b3baaa8fb28511c4c` |
 | test | `wikitext-2-raw-v1/test-00000-of-00001.parquet` | `5f1bea067869d04849c0f975a2b29c4ff47d867f484f5010ea5e861eab246d91` |
 
-Verify downloaded Parquet files with `Get-FileHash -Algorithm SHA256` before conversion. The evaluator consumes UTF-8 `.txt` split files. With Python and `pyarrow` installed, convert without printing row contents:
+The pinned files' hashes were independently verified on 2026-11-08. The checked-in preparation script verifies them again before conversion, streams the `text` column, writes one UTF-8 line per row, and emits a content-free manifest with row counts:
 
 Download the immutable revision into the folder structure used below:
 
@@ -60,12 +60,12 @@ Get-ChildItem $splitRoot -Filter '*.parquet' | Get-FileHash -Algorithm SHA256
 ```
 
 ```powershell
-python -c "import pyarrow.parquet as p; from pathlib import Path; src=Path('wikitext-2-raw-v1'); dst=Path('splits'); dst.mkdir(exist_ok=True); [(dst/(s+'.txt')).write_text(''.join((v or '')+'\n' for v in p.read_table(src/(s+'-00000-of-00001.parquet'))['text'].to_pylist()), encoding='utf-8') for s in ('train','validation','test')]"
+python .\tools\PCWord.Evaluation\prepare_wikitext.py .\wikitext-2-raw-v1 .\splits
 ```
 
-Use one file for each split and never reuse validation or test content for training. Each row/line and each `.`, `!`, or `?` starts a fresh token history. Normalization is Unicode letters, digits, and combining marks, invariant lowercase; punctuation separates tokens, while `. ! ?` terminate sentence history. This is Wikipedia prose and does not establish quality for chat, code, names, or specialized writing. Corpus download was attempted during Stage 5 implementation but the network connection reset; no source file hashes were independently recomputed in this environment.
+Use one file for each split and never reuse validation or test content for training. Each row/line and each `.`, `!`, or `?` starts a fresh token history. Normalization is Unicode letters, digits, and combining marks, invariant lowercase; punctuation separates tokens, while `. ! ?` terminate sentence history. The verified split row counts were train 36,718, validation 3,760, and test 4,358. This is Wikipedia prose and does not establish quality for chat, code, names, or specialized writing.
 
 
-### Retrieval attempt on 2026-11-06
+### Retrieval and verification on 2026-11-08
 
-The pinned WikiText-2 train split was retried from this environment with curl.exe -L --fail --max-time 30. DNS resolution failed with curl: (6) Could not resolve host: huggingface.co. No file was created and no checksum was computed. Verify all three downloaded files locally before conversion and evaluation; the source-published hashes above are not locally verified.
+The three pinned Parquet files were retrieved and their SHA-256 values matched the table above. The conversion script produced separate local splits and a manifest. The source and derived model remain uncommitted due to the unresolved license conflict.

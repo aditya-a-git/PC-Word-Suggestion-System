@@ -384,7 +384,7 @@ Add a small local next-word predictor after an eligible word boundary, evaluated
 
 ### Status
 
-Implementation status (updated 2026-11-06): the bounded offline n-gram predictor and owned-editor boundary integration are implemented. The evaluation harness now reports top-1/top-3/top-5, vocabulary/OOV coverage, conditional accuracy, skipped examples, validation selection, model load/size and warmed prediction latency in JSON; deterministic tests cover top-k metrics and no-future-token contexts. The pinned WikiText download was retried and failed because DNS could not resolve huggingface.co; no checksums were locally verified and no dataset result is claimed. Interactive WinForms verification remains outstanding. Stage 5 exit criteria are not met.
+Implementation status (updated 2026-11-08): the bounded offline n-gram predictor and owned-editor boundary integration are implemented. The evaluator uses pinned WikiText-2 splits whose source hashes were independently verified; validation selected order 3 and interpolation weight 0.8, and test top-1/top-3 were 16.29%/25.15% versus 7.27%/13.73% for the unigram baseline. Model size is 17.3 MB and warmed latency was 0.0180/0.0331 ms median/p95. The model remains local because dataset licensing is conflicting. Interactive WinForms verification with the generated model remains outstanding; see `docs/stage-5-evaluation.md`.
 
 ---
 

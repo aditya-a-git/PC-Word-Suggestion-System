@@ -41,6 +41,25 @@ public sealed class NGramPredictionTests
     }
 
     [Fact]
+    public void PredictSupportsTopFiveEvaluationResultsAndRejectsLargerRequests()
+    {
+        NGramModel model = NGramModel.Train(new[] { "a b", "a c", "a d", "a e", "a f", "a g" });
+
+        Assert.Equal(5, model.Predict("a", 5).Count);
+        Assert.Throws<ArgumentOutOfRangeException>(() => model.Predict("a", 6));
+    }
+
+    [Fact]
+    public void InterpolationUsesLowerOrderEvidenceForSparseTrigramContexts()
+    {
+        string[] lines = new[] { "a b y" }.Concat(Enumerable.Repeat("c b x", 100)).ToArray();
+        NGramModel model = NGramModel.Train(lines);
+
+        Assert.Equal("x", model.Predict("a b", 1, backoff: .4, maximumOrder: 3)[0]);
+        Assert.Equal("y", model.Predict("a b", 1, backoff: .8, maximumOrder: 3)[0]);
+    }
+
+    [Fact]
     public void SavesAndReloadsOnlyTheBoundedLocalModelAndSelectedConfiguration()
     {
         string path = Path.Combine(Path.GetTempPath(), $"pcword-{Guid.NewGuid():N}.json");

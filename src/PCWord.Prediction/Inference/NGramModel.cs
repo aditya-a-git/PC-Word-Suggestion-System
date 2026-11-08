@@ -6,18 +6,31 @@ namespace PCWord.Prediction.Inference;
 /// <summary>Deterministic bounded word n-gram model. Counts and requests stay local.</summary>
 public sealed class NGramModel
 {
-    public const int MaximumVocabulary = 20_000;
+    public const int MaximumVocabulary = 50_000;
     public const int MaximumContextEntries = 250_000;
+    private const int MaximumCandidatesPerContext = 32;
     private readonly Dictionary<string, long> _unigrams;
-    private readonly Dictionary<string, Dictionary<string, long>> _bigrams;
-    private readonly Dictionary<string, Dictionary<string, long>> _trigrams;
+    private readonly Dictionary<string, ContextCounts> _bigrams;
+    private readonly Dictionary<string, ContextCounts> _trigrams;
+    private readonly KeyValuePair<string, long>[] _rankedUnigrams;
+    private readonly double _unigramTotal;
     public double RecommendedBackoff { get; private set; } = 0.4;
+    /// <summary>Weight given to the highest available n-gram order during interpolation.</summary>
+    public double RecommendedInterpolationWeight => RecommendedBackoff;
     public int RecommendedOrder { get; private set; } = 3;
 
     private NGramModel(Dictionary<string, long> unigrams,
         Dictionary<string, Dictionary<string, long>> bigrams,
         Dictionary<string, Dictionary<string, long>> trigrams)
-    { _unigrams = unigrams; _bigrams = bigrams; _trigrams = trigrams; }
+    {
+        _unigrams = unigrams;
+        _rankedUnigrams = unigrams.OrderByDescending(pair => pair.Value)
+            .ThenBy(pair => pair.Key, StringComparer.Ordinal).ToArray();
+        _unigramTotal = unigrams.Values.Sum(value => (double)value);
+        var wordPool = unigrams.Keys.ToDictionary(word => word, word => word, StringComparer.Ordinal);
+        _bigrams = CompactContexts(bigrams, wordPool);
+        _trigrams = CompactContexts(trigrams, wordPool);
+    }
 
     public int VocabularySize => _unigrams.Count;
     public int ContextCount => _bigrams.Count + _trigrams.Count;
@@ -51,26 +64,42 @@ public sealed class NGramModel
         ArgumentNullException.ThrowIfNull(precedingText);
         double backoffValue = backoff ?? RecommendedBackoff;
         int orderValue = maximumOrder ?? RecommendedOrder;
-        if (maximum is < 1 or > 3 || backoffValue is <= 0 or > 1 || orderValue is < 1 or > 3) throw new ArgumentOutOfRangeException();
+        // The editor requests three candidates; the offline evaluator requests five
+        // so top-5 recall can be measured through the exact same ranking path.
+        if (maximum is < 1 or > 5 || backoffValue is <= 0 or > 1 || orderValue is < 1 or > 3) throw new ArgumentOutOfRangeException();
         string[] history = WordTokenizer.TokenizeSegments(precedingText).LastOrDefault() ?? Array.Empty<string>();
         history = history.TakeLast(2).ToArray();
         if (_unigrams.Count == 0) return Array.Empty<string>();
         var candidates = new HashSet<string>(StringComparer.Ordinal);
-        AddTop(candidates, orderValue >= 3 && history.Length == 2 && _trigrams.TryGetValue(Pair(history[0], history[1]), out var tri) ? tri : null, 32);
-        AddTop(candidates, orderValue >= 2 && history.Length > 0 && _bigrams.TryGetValue(history[^1], out var bi) ? bi : null, 32);
-        AddTop(candidates, _unigrams, 64);
-        double uniTotal = _unigrams.Values.Sum(v => (double)v);
+        ContextCounts? trigram = orderValue >= 3 && history.Length == 2 &&
+            _trigrams.TryGetValue(Pair(history[0], history[1]), out var tri) ? tri : null;
+        ContextCounts? bigram = orderValue >= 2 && history.Length > 0 &&
+            _bigrams.TryGetValue(history[^1], out var bi) ? bi : null;
+        AddTop(candidates, trigram, MaximumCandidatesPerContext);
+        AddTop(candidates, bigram, MaximumCandidatesPerContext);
+        AddTop(candidates, _rankedUnigrams, MaximumCandidatesPerContext * 2);
         var scored = candidates.Select(word =>
         {
-            double score;
-            if (orderValue >= 3 && history.Length == 2 &&
-                _trigrams.TryGetValue(Pair(history[0], history[1]), out var tc) && tc.TryGetValue(word, out long tcount))
-                score = tcount / (double)tc.Values.Sum(v => (double)v);
-            else if (orderValue >= 2 && history.Length > 0 &&
-                _bigrams.TryGetValue(history[^1], out var bc) && bc.TryGetValue(word, out long bcount))
-                score = bcount / (double)bc.Values.Sum(v => (double)v) * backoffValue;
-            else
-                score = _unigrams.TryGetValue(word, out long uc) ? uc / uniTotal * backoffValue * backoffValue : 0;
+            double unigramProbability = _unigrams.TryGetValue(word, out long unigramCount)
+                ? unigramCount / _unigramTotal
+                : 0;
+            double bigramProbability = bigram is not null && bigram.Value.TryGetValue(word, out long bigramCount)
+                ? bigramCount / bigram.Value.Total
+                : 0;
+            double trigramProbability = trigram is not null && trigram.Value.TryGetValue(word, out long trigramCount)
+                ? trigramCount / trigram.Value.Total
+                : 0;
+
+            // Interpolate adjacent orders so sparse contexts retain a useful lower-order
+            // signal instead of dropping to it only when a candidate is unseen.
+            double score = orderValue switch
+            {
+                3 when trigram is not null => backoffValue * trigramProbability +
+                    (1 - backoffValue) * (bigram is not null ? bigramProbability : unigramProbability),
+                >= 2 when bigram is not null => backoffValue * bigramProbability +
+                    (1 - backoffValue) * unigramProbability,
+                _ => unigramProbability
+            };
             long count = _unigrams.GetValueOrDefault(word);
             return (word, score, count);
         }).OrderByDescending(x => x.score).ThenByDescending(x => x.count).ThenBy(x => x.word, StringComparer.Ordinal)
@@ -78,16 +107,16 @@ public sealed class NGramModel
         return scored;
     }
 
-    public IReadOnlyList<string> PredictUnigram(int maximum = 3) => _unigrams
-        .OrderByDescending(p => p.Value).ThenBy(p => p.Key, StringComparer.Ordinal)
-        .Take(maximum).Select(p => p.Key).ToArray();
+    public IReadOnlyList<string> PredictUnigram(int maximum = 3) =>
+        _rankedUnigrams.Take(Math.Max(0, maximum)).Select(pair => pair.Key).ToArray();
 
     public void ConfigurePrediction(double backoff, int maximumOrder)
     {
         if (backoff is <= 0 or > 1 || maximumOrder is < 1 or > 3) throw new ArgumentOutOfRangeException();
         RecommendedBackoff = backoff; RecommendedOrder = maximumOrder;
     }
-    public void Save(string path) => File.WriteAllText(path, JsonSerializer.Serialize(new ModelData(_unigrams, _bigrams, _trigrams, RecommendedBackoff, RecommendedOrder)));
+    public void Save(string path) => File.WriteAllText(path, JsonSerializer.Serialize(new ModelData(
+        _unigrams, ExpandContexts(_bigrams), ExpandContexts(_trigrams), RecommendedBackoff, RecommendedOrder)));
     public static NGramModel Load(string path)
     {
         var file = new FileInfo(path);
@@ -98,7 +127,7 @@ public sealed class NGramModel
         if (data.Unigrams.Count > MaximumVocabulary || data.Bigrams.Count + data.Trigrams.Count > MaximumContextEntries * 2)
             throw new InvalidDataException("Model exceeds configured bounds.");
         if (data.Unigrams.Any(pair => string.IsNullOrEmpty(pair.Key) || pair.Value <= 0) ||
-            data.Bigrams.Values.Concat(data.Trigrams.Values).Any(counts => counts is null || counts.Count > 32 ||
+            data.Bigrams.Values.Concat(data.Trigrams.Values).Any(counts => counts is null || counts.Count > MaximumCandidatesPerContext ||
                 counts.Any(pair => string.IsNullOrEmpty(pair.Key) || pair.Value <= 0)) ||
             data.RecommendedBackoff is <= 0 or > 1 || data.RecommendedOrder is < 1 or > 3)
             throw new InvalidDataException("Model configuration or context exceeds configured bounds.");
@@ -112,10 +141,23 @@ public sealed class NGramModel
         .Where(p => p.Value.Keys.Any(vocab.ContainsKey))
         .OrderByDescending(p => p.Value.Values.Sum(v => (double)v)).ThenBy(p => p.Key, StringComparer.Ordinal)
         .Take(maximum).ToDictionary(p => p.Key, p => p.Value.Where(q => vocab.ContainsKey(q.Key))
-            .OrderByDescending(q => q.Value).ThenBy(q => q.Key, StringComparer.Ordinal).Take(32)
+            .OrderByDescending(q => q.Value).ThenBy(q => q.Key, StringComparer.Ordinal).Take(MaximumCandidatesPerContext)
             .ToDictionary(q => q.Key, q => q.Value, StringComparer.Ordinal), StringComparer.Ordinal);
-    private static void AddTop(HashSet<string> result, Dictionary<string, long>? values, int count)
-    { if (values is null) return; foreach (var item in values.OrderByDescending(p => p.Value).ThenBy(p => p.Key, StringComparer.Ordinal).Take(count)) result.Add(item.Key); }
+    private static Dictionary<string, ContextCounts> CompactContexts(
+        Dictionary<string, Dictionary<string, long>> source,
+        Dictionary<string, string> wordPool) => source.ToDictionary(
+            pair => pair.Key,
+            pair => new ContextCounts(pair.Value, wordPool),
+            StringComparer.Ordinal);
+    private static Dictionary<string, Dictionary<string, long>> ExpandContexts(
+        Dictionary<string, ContextCounts> source) => source.ToDictionary(
+            pair => pair.Key,
+            pair => pair.Value.ToDictionary(),
+            StringComparer.Ordinal);
+    private static void AddTop(HashSet<string> result, ContextCounts? values, int count)
+    { if (values is null) return; values.Value.AddTop(result, count); }
+    private static void AddTop(HashSet<string> result, KeyValuePair<string, long>[] values, int count)
+    { foreach (var item in values.Take(count)) result.Add(item.Key); }
     private static string Pair(string a, string b) => a + "\u001f" + b;
     private static void Increment(Dictionary<string, long> values, string key) => values[key] = values.GetValueOrDefault(key) + 1;
     private static void IncrementNested(Dictionary<string, Dictionary<string, long>> values, string key, string word)
@@ -123,6 +165,47 @@ public sealed class NGramModel
     private sealed record ModelData(Dictionary<string, long> Unigrams,
         Dictionary<string, Dictionary<string, long>> Bigrams, Dictionary<string, Dictionary<string, long>> Trigrams,
         double RecommendedBackoff = 0.4, int RecommendedOrder = 3);
+    private readonly struct ContextCounts
+    {
+        private readonly KeyValuePair<string, long>[] _ranked;
+        public double Total { get; }
+
+        public ContextCounts(Dictionary<string, long> counts, Dictionary<string, string> wordPool)
+        {
+            _ranked = counts.Select(pair =>
+                new KeyValuePair<string, long>(wordPool.GetValueOrDefault(pair.Key, pair.Key), pair.Value))
+                .OrderByDescending(pair => pair.Value)
+                .ThenBy(pair => pair.Key, StringComparer.Ordinal).ToArray();
+            Total = _ranked.Sum(pair => (double)pair.Value);
+        }
+
+        public bool TryGetValue(string word, out long count)
+        {
+            foreach (KeyValuePair<string, long> pair in _ranked)
+            {
+                if (StringComparer.Ordinal.Equals(pair.Key, word))
+                {
+                    count = pair.Value;
+                    return true;
+                }
+            }
+            count = 0;
+            return false;
+        }
+
+        public void AddTop(HashSet<string> result, int count)
+        {
+            foreach (KeyValuePair<string, long> pair in _ranked.Take(count))
+                result.Add(pair.Key);
+        }
+
+        public Dictionary<string, long> ToDictionary()
+        {
+            var result = new Dictionary<string, long>(_ranked.Length, StringComparer.Ordinal);
+            foreach (KeyValuePair<string, long> pair in _ranked) result.Add(pair.Key, pair.Value);
+            return result;
+        }
+    }
 }
 
 /// <summary>Invariant lowercase Unicode letter/mark/digit tokens; punctuation separates tokens.</summary>

@@ -58,7 +58,7 @@ The automated suite covers tokenizer normalization, unigram/bigram/trigram ranki
 dotnet run --project .\tools\PCWord.Evaluation\PCWord.Evaluation.csproj --configuration Release -- <train.txt> <validation.txt> <test.txt> <local-model-output.json>
 ```
 
-Supply three distinct UTF-8 files converted from the pinned Parquet splits; see `data/README.md`. The command selects order/backoff on validation, evaluates test once, and prints aggregate quality and resource metrics only. The synthetic manager-plus-model request timing excludes the WinForms adapter/UI and edit acceptance. The model contains corpus-derived vocabulary/counts; keep it local and do not train on private documents. The fixed-corpus run was blocked here by reset download connections.
+Supply three distinct UTF-8 files converted from the pinned Parquet splits with `tools/PCWord.Evaluation/prepare_wikitext.py`; see `data/README.md`. The command selects order/interpolation weight on validation, evaluates test once, and prints aggregate quality and resource metrics only. The synthetic manager-plus-model request timing excludes the WinForms adapter/UI and edit acceptance. The model contains corpus-derived vocabulary/counts; keep it local and do not train on private documents. The 2026-11-08 fixed-corpus evaluation is recorded in `docs/stage-5-evaluation.md`.
 
 The controlled-editor form loads `%LOCALAPPDATA%\PCWord\ngram-model.json` on launch if present. Manual check (not performed here): place a locally generated model there, open the WinForms editor, type synthetic non-sensitive context ending at a word boundary, verify up to three candidates, accept with Ctrl+Space, and confirm insertion preserves punctuation/trailing spaces. Then test partial words, selection, sensitive toggle, pause/resume, caret/focus changes, and that stale suggestions disappear. This remains unverified; arbitrary external applications are unsupported.
 
@@ -132,7 +132,7 @@ GitHub Actions run [40702996019](https://github.com/aditya-a-git/PC-Word-Suggest
 
 ## Stage 5 WikiText evaluation
 
-Deterministic evaluator tests check top-k denominator semantics, OOV/coverage rates, context-only-before-target example creation and punctuation/row resets. They use small fixtures and do not download a corpus. For real evaluation and pinned hashes, follow docs/stage-5-evaluation.md and data/README.md. The 2026-11-06 retrieval attempt failed at DNS resolution for huggingface.co; no WikiText scores were produced.
+Deterministic evaluator tests check top-k denominator semantics, OOV/coverage rates, context-only-before-target example creation and punctuation/row resets. They use small fixtures and do not download a corpus. For the completed pinned WikiText-2 run and reproduction steps, follow docs/stage-5-evaluation.md and data/README.md. The corpus and model remain local because dataset license statements conflict.
 
 ## Manual WinForms verification still required
 
