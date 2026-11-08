@@ -14,7 +14,7 @@ public sealed class NGramModel
     private readonly Dictionary<string, ContextCounts> _trigrams;
     private readonly KeyValuePair<string, long>[] _rankedUnigrams;
     private readonly double _unigramTotal;
-    public double RecommendedBackoff { get; private set; } = 0.4;
+    public double RecommendedBackoff { get; private set; } = 0.8;
     /// <summary>Weight given to the highest available n-gram order during interpolation.</summary>
     public double RecommendedInterpolationWeight => RecommendedBackoff;
     public int RecommendedOrder { get; private set; } = 3;
@@ -164,7 +164,7 @@ public sealed class NGramModel
     { if (!values.TryGetValue(key, out var counts)) values[key] = counts = new(StringComparer.Ordinal); Increment(counts, word); }
     private sealed record ModelData(Dictionary<string, long> Unigrams,
         Dictionary<string, Dictionary<string, long>> Bigrams, Dictionary<string, Dictionary<string, long>> Trigrams,
-        double RecommendedBackoff = 0.4, int RecommendedOrder = 3);
+        double RecommendedBackoff = 0.8, int RecommendedOrder = 3);
     private readonly struct ContextCounts
     {
         private readonly KeyValuePair<string, long>[] _ranked;
