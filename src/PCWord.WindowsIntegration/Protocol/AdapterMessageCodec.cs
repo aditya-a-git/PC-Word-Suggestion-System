@@ -12,8 +12,11 @@ public static class AdapterMessageCodec
     private static readonly JsonSerializerOptions Options = new()
     {
         PropertyNameCaseInsensitive = false,
+        AllowDuplicateProperties = false,
+        RespectRequiredConstructorParameters = true,
+        MaxDepth = 16,
         UnmappedMemberHandling = JsonUnmappedMemberHandling.Disallow,
-        Converters = { new JsonStringEnumConverter() }
+        Converters = { new JsonStringEnumConverter(allowIntegerValues: false) }
     };
 
     public static byte[] Serialize(AdapterMessage message)
@@ -37,7 +40,7 @@ public static class AdapterMessageCodec
             message = JsonSerializer.Deserialize<AdapterMessage>(bytes, Options)
                 ?? throw new InvalidDataException("IPC frame is empty.");
         }
-        catch (JsonException)
+        catch (Exception exception) when (exception is JsonException or ArgumentException)
         {
             throw new InvalidDataException("IPC frame is malformed.");
         }
@@ -48,12 +51,15 @@ public static class AdapterMessageCodec
 
     public static void Validate(AdapterMessage message)
     {
+        ArgumentNullException.ThrowIfNull(message);
         if (message.ProtocolVersion != CurrentProtocolVersion)
             throw new InvalidDataException("Unsupported IPC protocol version.");
         if (message.RequestId == Guid.Empty || message.ContextVersion < 0)
             throw new InvalidDataException("IPC request identity is invalid.");
 
-        if (message.FieldId?.Length > InputContextSnapshot.MaximumFieldIdLength)
+        if (!InputContextSnapshot.IsWellFormed(message.FieldId) ||
+            message.FieldId?.Any(char.IsControl) == true ||
+            message.FieldId?.Length > InputContextSnapshot.MaximumFieldIdLength)
             throw new InvalidDataException("IPC field identity is too long.");
 
         switch (message.Kind)
@@ -65,12 +71,15 @@ public static class AdapterMessageCodec
                     message.Suggestions is not null || message.Candidate is not null ||
                     message.EditStatus is not null)
                     throw new InvalidDataException("Context update metadata is inconsistent.");
+                ValidateSnapshot(message.Snapshot);
                 break;
             case AdapterMessageKind.Suggestions:
                 if (message.Snapshot is not null || message.Candidate is not null ||
                     message.EditStatus is not null || message.Suggestions is null ||
                     message.Suggestions.Count > 3 ||
-                    message.Suggestions.Any(value => !IsValidCandidate(value)))
+                    message.Suggestions.Any(value => !IsValidCandidate(value)) ||
+                    message.Suggestions.Distinct(StringComparer.OrdinalIgnoreCase).Count() != message.Suggestions.Count ||
+                    (message.Suggestions.Count > 0 && string.IsNullOrWhiteSpace(message.FieldId)))
                     throw new InvalidDataException("Suggestion response is invalid.");
                 break;
             case AdapterMessageKind.AcceptSuggestion:
@@ -81,7 +90,7 @@ public static class AdapterMessageCodec
                 break;
             case AdapterMessageKind.EditResult:
                 if (message.Snapshot is not null || message.Suggestions is not null ||
-                    message.Candidate is not null || message.EditStatus is null ||
+                    message.Candidate is not null || string.IsNullOrWhiteSpace(message.FieldId) || message.EditStatus is null ||
                     !Enum.IsDefined(message.EditStatus.Value))
                     throw new InvalidDataException("Edit result is invalid.");
                 break;
@@ -95,8 +104,22 @@ public static class AdapterMessageCodec
         }
     }
 
+    private static void ValidateSnapshot(InputContextSnapshot snapshot)
+    {
+        try { snapshot.Validate(); }
+        catch (ArgumentException) { throw new InvalidDataException("IPC snapshot is invalid."); }
+        bool eligible = snapshot.ContextAvailable && snapshot.HasFocus && !snapshot.IsComposing &&
+            snapshot.SelectionLength == 0 && snapshot.Sensitivity == InputFieldSensitivity.KnownSafe &&
+            !string.IsNullOrWhiteSpace(snapshot.FieldId);
+        if (!eligible && (!string.IsNullOrEmpty(snapshot.TextBeforeCaret) ||
+            !string.IsNullOrEmpty(snapshot.TextAfterCaret)))
+            throw new InvalidDataException("Ineligible IPC context contains text.");
+        if (eligible && (snapshot.TextBeforeCaret is null || snapshot.TextAfterCaret is null))
+            throw new InvalidDataException("Eligible IPC context is incomplete.");
+    }
+
     private static bool IsValidCandidate(string? value) =>
         !string.IsNullOrWhiteSpace(value) &&
         value.Length <= MaximumCandidateLength &&
-        !value.Any(char.IsControl);
+        InputContextSnapshot.IsWellFormed(value) && !value.Any(char.IsControl);
 }

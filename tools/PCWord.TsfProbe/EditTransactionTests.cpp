@@ -44,7 +44,7 @@ int main()
         REQUIRE(backend.reads == (failure == 2 ? 1 : 0));
         REQUIRE(Apply(request, 2, 201, backend) == Result::Rejected);
     }
-    struct ThrowingBackend : Backend { bool Replace() { ++writes; throw std::runtime_error("provider failure"); } } throwing;
+    struct ThrowingBackend : Backend { bool fail = true; bool Replace() { ++writes; if (fail) throw std::runtime_error("provider failure"); return true; } } throwing;
     Ticket request{ 2, 100, true };
     try { Apply(request, 2, 200, throwing); REQUIRE(false); }
     catch (const std::runtime_error&) { REQUIRE(!request.armed && throwing.writes == 1); }

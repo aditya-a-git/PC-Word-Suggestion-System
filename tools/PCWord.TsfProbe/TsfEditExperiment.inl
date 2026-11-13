@@ -104,58 +104,16 @@
     HRESULT ApplyExperiment(ITfContext* context, TfEditCookie cookie)
     {
         using namespace pcword::edit;
-        ComPtr<ITfRange> caret, target, newCaret;
-        Window window;
-        std::wstring expected, observed;
-        // All provider calls below execute under the granted write edit cookie.
-        // A failed SetText/SetSelection/verification is uncertain, never retried.
-        struct Backend
-        {
-            std::function<bool()> validate, replace, verify;
-            bool Validate() { return validate(); }
-            bool Replace() { return replace(); }
-            bool Verify() { return verify(); }
-        } backend{
-            [&]() {
-                std::array<UCHAR, 32> fingerprint{};
-                if (!EligibleSelection(context, cookie, caret) ||
-                    !SamePosition(cookie, caret.Get(), m_capturedCaret.Get()) ||
-                    !ReadWindow(cookie, caret.Get(), window) || !SyntheticTokenEligible(window) ||
-                    !Fingerprint(window, fingerprint) || fingerprint != m_fingerprint) return false;
-                LONG moved = 0;
-                if (caret->Clone(&target) != S_OK ||
-                    target->ShiftStart(cookie, -static_cast<LONG>(std::size(ExpectedToken) - 1), &moved, nullptr) != S_OK ||
-                    moved != -static_cast<LONG>(std::size(ExpectedToken) - 1)) return false;
-                std::wstring token;
-                if (!ReadRange(cookie, target.Get(), static_cast<ULONG>(std::size(ExpectedToken) - 1), token) ||
-                    token != ExpectedToken) return false;
-                expected = window.before.substr(0, window.before.size() - (std::size(ExpectedToken) - 1)) +
-                    ReplacementToken + window.after;
-                // Anchor the target across insertion, including the replacement.
-                return target->SetGravity(cookie, TF_GRAVITY_BACKWARD, TF_GRAVITY_FORWARD) == S_OK;
+        const auto generation = m_ticket.generation;
+        RangeEdit backend(cookie, m_capturedCaret.Get(), m_fingerprint,
+            [&](ComPtr<ITfRange>& caret) {
+                return m_generation == generation && EligibleSelection(context, cookie, caret);
             },
-            [&]() {
-                if (target->SetText(cookie, 0, ReplacementToken,
-                    static_cast<LONG>(std::size(ReplacementToken) - 1)) != S_OK) return false;
-                if (target->Clone(&newCaret) != S_OK ||
-                    newCaret->Collapse(cookie, TF_ANCHOR_END) != S_OK) return false;
-                TF_SELECTION selection{ newCaret.Get(), { TF_AE_NONE, FALSE } };
+            [&](ITfRange* caret) {
+                TF_SELECTION selection{ caret, { TF_AE_NONE, FALSE } };
                 return context->SetSelection(cookie, 1, &selection) == S_OK;
-            },
-            [&]() {
-                ComPtr<ITfRange> actualCaret;
-                if (!EligibleSelection(context, cookie, actualCaret) ||
-                    !SamePosition(cookie, actualCaret.Get(), newCaret.Get()) ||
-                    !ReadRange(cookie, target.Get(), static_cast<ULONG>(std::size(ReplacementToken) - 1), observed) ||
-                    observed != ReplacementToken ||
-                    !ReadRange(cookie, window.guard.Get(), static_cast<ULONG>(expected.size()), observed) ||
-                    observed != expected) return false;
-                return true;
-            }
-        };
+            });
         const Result result = Apply(m_ticket, m_generation, GetTickCount64(), backend);
-        if (!expected.empty()) SecureZeroMemory(expected.data(), expected.size() * sizeof(wchar_t));
-        if (!observed.empty()) SecureZeroMemory(observed.data(), observed.size() * sizeof(wchar_t));
         Trace(result == Result::Verified ? L"experiment edit=verified" :
             result == Result::Uncertain ? L"experiment edit=uncertain no-retry=yes" : L"experiment edit=rejected");
         return result == Result::Verified ? S_OK : E_FAIL;

@@ -15,7 +15,7 @@
 #ifdef PCWORD_EDIT_EXPERIMENT
 #include "EditTransaction.h"
 #include "TsfEditSession.h"
-#include "TsfRangeOperations.h"
+#include "TsfRangeEdit.h"
 #endif
 
 #pragma comment(lib, "ole32.lib")
@@ -41,14 +41,14 @@ static const CLSID CLSID_PCWordTsfProbe =
 static const GUID GUID_PCWordTsfProfile =
 { 0x0c3a11f4, 0x5f3b, 0x47a2, { 0x9e, 0x8d, 0x5a, 0x6f, 0x2d, 0x1c, 0x8b, 0x90 } };
 
+static constexpr wchar_t kProfileDescription[] = L"PCWord TSF Feasibility Probe";
+#endif
+
 // GUID_PROP_INPUTSCOPE is declared by inputscope.h but not exported by a
 // link library in the Windows SDK used by CI. Keep the documented GUID value
 // local to this translation unit to avoid an unresolved external.
 static const GUID PCWORD_GUID_PROP_INPUTSCOPE =
 { 0x1713dd5a, 0x68e7, 0x4a5b, { 0x9a, 0xf6, 0x59, 0x2a, 0x59, 0x5c, 0x77, 0x8d } };
-
-static constexpr wchar_t kProfileDescription[] = L"PCWord TSF Feasibility Probe";
-#endif
 
 static HMODULE g_module = nullptr;
 static std::atomic<long> g_objects{ 0 };
