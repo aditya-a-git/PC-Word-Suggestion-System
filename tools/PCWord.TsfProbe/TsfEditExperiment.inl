@@ -130,15 +130,12 @@
         HRESULT hr = E_FAIL, sessionHr = E_FAIL;
         try
         {
-            auto* session = new pcword::edit::EditSession(g_objects,
+            const auto result = pcword::edit::RequestSynchronousSession(context, m_clientId, write, g_objects,
                 [this, context, write](TfEditCookie cookie) {
                     return write ? ApplyExperiment(context, cookie) : CaptureExperiment(context, cookie);
                 });
-            // Synchronous requests are legal in a key callback. Never request a
-            // write from OnEndEdit and never retry a denied/contended lock.
-            hr = context->RequestEditSession(m_clientId, session,
-                TF_ES_SYNC | (write ? TF_ES_READWRITE : TF_ES_READ), &sessionHr);
-            session->Release();
+            hr = result.request;
+            sessionHr = result.session;
         }
         catch (...) { hr = E_FAIL; }
         m_inSession = false;

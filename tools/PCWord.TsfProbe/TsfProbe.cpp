@@ -191,9 +191,9 @@ static void TraceEditEvent(bool selectionKnown, bool collapsedSelection,
 static void Trace(const wchar_t* message)
 {
     // Debug output contains status/metrics only. Never include text content.
-    OutputDebugStringW(L"[PCWord.TSF] ");
-    OutputDebugStringW(message);
-    OutputDebugStringW(L"\r\n");
+    wchar_t record[768]{};
+    if (swprintf_s(record, L"[PCWord.TSF] %s\r\n", message) > 0)
+        OutputDebugStringW(record);
 }
 
 static void TraceHr(const wchar_t* operation, HRESULT hr)

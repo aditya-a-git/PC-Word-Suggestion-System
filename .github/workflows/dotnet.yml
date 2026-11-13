@@ -7,6 +7,9 @@ on:
     branches: [main]
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
   build-and-test:
     runs-on: windows-latest
@@ -27,7 +30,7 @@ jobs:
         run: dotnet build .\PCWord.sln --configuration Release --no-restore
 
       - name: Run tests
-        run: dotnet test .\PCWord.sln --configuration Release --no-build --logger "console;verbosity=normal"
+        run: dotnet test .\PCWord.sln --configuration Release --no-build --logger "console;verbosity=normal" --logger "trx;LogFileName=managed.trx" --results-directory .\TestResults
 
       - name: Benchmark bundled bilingual dictionary
         shell: pwsh
@@ -44,7 +47,26 @@ jobs:
         run: cmake --build .\tools\PCWord.TsfProbe\build-ci --config Release
 
       - name: Run native safety and edit-session tests
-        run: ctest --test-dir .\tools\PCWord.TsfProbe\build-ci -C Release --output-on-failure
+        run: ctest --test-dir .\tools\PCWord.TsfProbe\build-ci -C Release --output-on-failure --output-junit native-tests.xml
+
+      - name: Validate Windows environment report template
+        shell: pwsh
+        run: |
+          .\tools\validation\New-NotepadTestReport.ps1 -OutputPath .\TestResults\Notepad-not-run.json
+          $report = Get-Content .\TestResults\Notepad-not-run.json -Raw | ConvertFrom-Json
+          if ($report.verificationStatus -ne 'not-run' -or $report.cases.Count -ne 19) { throw 'Invalid report template.' }
+          if (@($report.cases | Where-Object result -ne 'not-run').Count -ne 0) { throw 'Template must not claim tests ran.' }
+
+      - name: Retain automated test evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: PCWord-test-evidence-${{ github.sha }}
+          path: |
+            TestResults/
+            tools/PCWord.TsfProbe/build-ci/native-tests.xml
+          if-no-files-found: warn
+          retention-days: 14
 
       - name: Publish controlled-editor evaluation build
         shell: pwsh

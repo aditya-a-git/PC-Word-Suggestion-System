@@ -34,3 +34,18 @@ The application stores settings under `%LOCALAPPDATA%\PCWord\settings.json`. Do 
 ## Release prerequisites not yet implemented
 
 A release install requires an architecture-specific distribution, verified runtime prerequisites, versioning, asset/license manifest, registration design if production TSF is introduced, rollback behavior, and a tested uninstaller. None is currently provided. See [release-readiness.md](release-readiness.md).
+
+## Separate synthetic edit experiment
+
+The opt-in `PCWordTsfEditExperiment.dll` artifact is separate from the read-only
+probe and the controlled-editor ZIP. It is **not installed or registered by the
+application or CI**. See [tsf-integration.md](tsf-integration.md) for manual test
+registration and cleanup. COM entries use HKCU; TSF profile/category API privilege
+and storage behavior remains unverified. A non-elevated failure must be recorded,
+not worked around with an undocumented global installation.
+
+There is no automatic upgrade/repair path for experimental DLLs. Disable the
+profile, close hosts, unregister the exact old DLL under the same account and
+retain its build until cleanup is verified. Then use a fresh build directory.
+This is a test procedure, not a validated installer. Preserve settings and user
+data; do not recursively delete `%LOCALAPPDATA%\PCWord` during cleanup.

@@ -46,4 +46,22 @@ namespace pcword::edit
         std::atomic<long>& m_objects;
         std::function<HRESULT(TfEditCookie)> m_callback;
     };
+
+    struct SessionResult
+    {
+        HRESULT request = E_FAIL;
+        HRESULT session = E_FAIL;
+    };
+
+    inline SessionResult RequestSynchronousSession(ITfContext* context, TfClientId client,
+        bool write, std::atomic<long>& objects, std::function<HRESULT(TfEditCookie)> callback)
+    {
+        SessionResult result;
+        if (!context || client == TF_CLIENTID_NULL) { result.request = E_INVALIDARG; return result; }
+        auto* operation = new EditSession(objects, std::move(callback));
+        result.request = context->RequestEditSession(client, operation,
+            TF_ES_SYNC | (write ? TF_ES_READWRITE : TF_ES_READ), &result.session);
+        operation->Release();
+        return result;
+    }
 }

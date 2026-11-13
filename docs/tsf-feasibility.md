@@ -1,5 +1,13 @@
 # TSF feasibility spike
 
+> Current status (2026-11-13): the original diagnostic DLL remains read-only.
+> A separate opt-in synthetic edit experiment and safety regressions are now
+> implemented. See [tsf-integration.md](tsf-integration.md) and
+> [testing.md](testing.md) for the current implementation and evidence.
+> Older no-edit-session/build-pending statements below describe prior revisions.
+> Real external-app operation and production readiness remain unverified.
+
+
 ## Scope and conclusion
 
 `tools/PCWord.TsfProbe` is an experimental native C++ COM text service. It is separate from prediction and UI Automation code. It observes service activation, document focus, context edit notifications, selection/caret status, caret geometry, InputScope retrieval and the configured safety decision. A status-only DebugView marker can be aggregated by `PCWord.CompatReport`.

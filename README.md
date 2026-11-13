@@ -4,6 +4,26 @@ PCWord is a Windows desktop typing prototype. The PCWord-owned WinForms editor s
 
 **Release status:** development prototype only. No installer or production external-app adapter exists, and external applications are not supported for prediction. See [release readiness](docs/release-readiness.md), [installation limits](docs/installation.md), and [uninstallation limits](docs/uninstallation.md).
 
+## Current hardening work
+
+A separate **PCWordTsfEditExperiment.dll** now implements a guarded, explicit
+`ITfEditSession` experiment for synthetic Notepad text. It has its own COM/profile
+identity, two opt-in flags, capture/apply shortcuts, stale-context checks, a
+five-second one-shot ticket, and bounded post-edit/caret verification. The original
+**PCWordTsfProbe.dll remains read-only**. The experiment is not connected to
+prediction, IPC or the popup and has not been run in real Notepad in this task.
+
+Sensitive-scope precedence, foreground context checks, managed snapshot/protocol
+validation, cancellation reentrancy and duplicate acceptance are hardened. The
+expanded managed suite passes 216 tests; native model/COM tests and Windows CI
+results are recorded in [testing](docs/testing.md).
+
+For your Windows test, follow [the exact Notepad experiment procedure](docs/tsf-integration.md).
+See [architecture](docs/architecture.md), [compatibility](docs/application-compatibility.md),
+[security](docs/ipc-security.md), [limitations](docs/known-limitations.md), and
+[remaining work](next_steps.txt). Production transport, external suggestions and
+consumer installation remain gated on actual Windows application evidence.
+
 ## Build, test, and run
 
 Requirements: Windows, .NET 10 SDK, and the Windows Desktop targeting pack.
@@ -29,7 +49,7 @@ The benchmark reports dictionary lookup separately from the synthetic managed en
 
 `tools/PCWord.WindowsProbe` is read-only UI Automation feasibility code. `tools/PCWord.TsfProbe` remains diagnostic-only. Its bounded context read requires the separate `PCWORD_TSF_ALLOW_CONTEXT_READ=1` process opt-in plus the per-user enabled setting and exact host executable allowlist. The default is paused and `notepad.exe` only. Sensitive InputScope classifications always deny; Unknown is allowed only for an allowlisted host. This does not make external applications production-supported.
 
-The current Windows build verifies native compilation and the two input-scope/safety policy test executables only. The TSF profile was not registered or activated by this build/test run. The owner has reported Notepad observations, documented separately, but the new registry policy has no runtime host verification. Production cross-process prediction, authorized TSF edits, and a system popup are not implemented; external apps remain unsupported for prediction. See `docs/windows-integration-status.md` for the exact status.
+The Windows build verifies native compilation and five input-policy, transaction, COM-session and range-model test executables. The TSF profile was not registered or activated by this build/test run. The owner has reported Notepad observations, documented separately, but the new registry policy has no runtime host verification. Production cross-process prediction, authorized TSF edits, and a system popup are not implemented; external apps remain unsupported for prediction. See `docs/windows-integration-status.md` for the exact status.
 
 ## Known limitations
 
@@ -41,7 +61,7 @@ The current Windows build verifies native compilation and the two input-scope/sa
 ## Scope and limitations
 
 - The prediction and editing code path implemented here is limited to PCWord's own editor. The TSF probe can perform diagnostic bounded reads under the gates above, but it is not a production prediction adapter for other applications.
-- No global keyboard hook, cross-process IPC/editing, TSF edit session, external-app popup, network prediction, or persistence of typed text is implemented.
+- No global keyboard hook, production cross-process IPC/editing, connected external-app popup, network prediction, or persistence of typed text is implemented. TSF editing exists only in the separate opt-in synthetic experiment described above.
 - External TSF policy settings are stored under `HKCU\Software\PCWord`: an Enabled DWORD and an Allowlist multi-string containing executable file names only. The managed app starts this feature paused by default and reports whether Ctrl+Alt+Shift+P was registered. Names are matched case-insensitively and exactly, but file-name matching can be spoofed by a differently located binary; path/signature checks are a later hardening step. Do not add browsers by default: if InputScope is Unknown, ordinary non-password fields such as card-number or OTP fields would be allowed.
 - No confidence score or corpus frequency is inferred; dictionary ranking uses ESDB size/variant metadata, with a two-character minimum prefix and a three-candidate cap.
 - Stage 4's controlled-editor dictionary path and local benchmark are implemented. Runtime measurements from the live WinForms UI are available in the app but were not collected in this run. External Windows integration remains unsupported.
