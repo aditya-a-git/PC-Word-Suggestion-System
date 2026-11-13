@@ -123,7 +123,7 @@ int main()
 {
     // Failures: policy/focus, selection, expected text, write lock, partial write,
     // neighboring corruption, failed selection, incorrect caret, read failure.
-    for (int failure = 0; failure <= 9; ++failure)
+    for (int failure = 0; failure <= 11; ++failure)
     {
         Document doc;
         {
@@ -139,8 +139,14 @@ int main()
             doc.partialWrite = failure == 5;
             doc.corruptNeighbor = failure == 6;
             doc.denyRead = failure == 9;
+            int eligibilityCalls = 0;
             RangeEdit edit(Cookie, captured.Get(), hash,
-                [&](ComPtr<ITfRange>& output) { output = caret; return failure != 1; },
+                [&](ComPtr<ITfRange>& output) {
+                    ++eligibilityCalls;
+                    output = caret;
+                    return failure != 1 && !(failure == 10 && eligibilityCalls == 2) &&
+                        !(failure == 11 && eligibilityCalls == 3);
+                },
                 [&](ITfRange* requested) {
                     if (failure == 7) return false;
                     if (failure == 8) { caret.Attach(new Range(doc, 0, 0)); return true; }
@@ -150,7 +156,8 @@ int main()
             const Result result = Apply(ticket, 1, 101, edit);
             REQUIRE(result == (failure == 0 ? Result::Verified :
                 failure <= 3 || failure == 9 ? Result::Rejected : Result::Uncertain));
-            REQUIRE(doc.writes == (failure <= 3 && failure != 0 || failure == 9 ? 0 : 1));
+            const bool wrote = failure == 0 || (failure >= 4 && failure <= 8) || failure == 11;
+            REQUIRE(doc.writes == (wrote ? 1 : 0));
             if (failure == 0)
             {
                 REQUIRE(doc.text == L"hello pcword-verified world");
@@ -180,6 +187,14 @@ int main()
         if (i == 2) REQUIRE(window.before.size() == 127);
         Window noLock;
         REQUIRE(!ReadWindow(0, caret.Get(), noLock));
+    }
+    {
+        Document doc;
+        doc.text = std::wstring(31, L'x') + L"\xD83D\xDE00";
+        ComPtr<ITfRange> caret; caret.Attach(new Range(doc, 0, 0));
+        Window window;
+        REQUIRE(ReadWindow(Cookie, caret.Get(), window));
+        REQUIRE(window.after.size() == 31 && WellFormed(window.after));
     }
     return 0;
 }

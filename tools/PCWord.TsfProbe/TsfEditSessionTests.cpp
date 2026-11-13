@@ -9,12 +9,14 @@ public:
     HRESULT requestResult = S_OK, sessionResult = S_OK;
     DWORD flags = 0;
     int requests = 0;
+    bool throwRequest = false;
     STDMETHODIMP QueryInterface(REFIID, void**) override { return E_NOINTERFACE; }
     STDMETHODIMP_(ULONG) AddRef() override { return 1; }
     STDMETHODIMP_(ULONG) Release() override { return 1; }
     STDMETHODIMP RequestEditSession(TfClientId, ITfEditSession* session, DWORD value, HRESULT* result) override
     {
         ++requests; flags = value;
+        if (throwRequest) throw std::runtime_error("request provider");
         *result = sessionResult;
         if (requestResult == S_OK && sessionResult == S_OK) *result = session->DoEditSession(42);
         return requestResult;
@@ -86,5 +88,13 @@ int main()
     REQUIRE(read.request == S_OK && read.session == E_FAIL);
     REQUIRE(context.flags == (TF_ES_SYNC | TF_ES_READ));
     REQUIRE(objects == 0);
+    context.throwRequest = true;
+    try
+    {
+        pcword::edit::RequestSynchronousSession(&context, 1, true, objects,
+            [](TfEditCookie) { return S_OK; });
+        REQUIRE(false);
+    }
+    catch (const std::runtime_error&) { REQUIRE(objects == 0); }
     return 0;
 }

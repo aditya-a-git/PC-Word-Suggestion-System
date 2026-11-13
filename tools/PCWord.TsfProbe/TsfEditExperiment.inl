@@ -89,14 +89,16 @@
     HRESULT CaptureExperiment(ITfContext* context, TfEditCookie cookie)
     {
         ClearCapture();
+        const auto generation = m_generation;
         Microsoft::WRL::ComPtr<ITfRange> caret;
         pcword::edit::Window window;
         if (!EligibleSelection(context, cookie, caret) ||
             !pcword::edit::ReadWindow(cookie, caret.Get(), window) ||
             !pcword::edit::SyntheticTokenEligible(window) ||
             !pcword::edit::Fingerprint(window, m_fingerprint) ||
-            caret->Clone(&m_capturedCaret) != S_OK) return E_ACCESSDENIED;
-        m_ticket = { m_generation, GetTickCount64(), true };
+            caret->Clone(&m_capturedCaret) != S_OK || generation != m_generation ||
+            !HasCurrentFocus(context)) return E_ACCESSDENIED;
+        m_ticket = { generation, GetTickCount64(), true };
         Trace(L"experiment capture=armed ttl-ms=5000");
         return S_OK;
     }
@@ -131,8 +133,9 @@
         try
         {
             const auto result = pcword::edit::RequestSynchronousSession(context, m_clientId, write, g_objects,
-                [this, context, write](TfEditCookie cookie) {
-                    return write ? ApplyExperiment(context, cookie) : CaptureExperiment(context, cookie);
+                [self = Microsoft::WRL::ComPtr<TsfProbe>(this),
+                 target = Microsoft::WRL::ComPtr<ITfContext>(context), write](TfEditCookie cookie) {
+                    return write ? self->ApplyExperiment(target.Get(), cookie) : self->CaptureExperiment(target.Get(), cookie);
                 });
             hr = result.request;
             sessionHr = result.session;

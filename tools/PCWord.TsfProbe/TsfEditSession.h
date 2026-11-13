@@ -5,6 +5,7 @@
 #include <atomic>
 #include <functional>
 #include <new>
+#include <memory>
 #include <utility>
 
 namespace pcword::edit
@@ -58,10 +59,11 @@ namespace pcword::edit
     {
         SessionResult result;
         if (!context || client == TF_CLIENTID_NULL) { result.request = E_INVALIDARG; return result; }
-        auto* operation = new EditSession(objects, std::move(callback));
-        result.request = context->RequestEditSession(client, operation,
+        auto release = [](EditSession* value) { value->Release(); };
+        std::unique_ptr<EditSession, decltype(release)> operation(
+            new EditSession(objects, std::move(callback)), release);
+        result.request = context->RequestEditSession(client, operation.get(),
             TF_ES_SYNC | (write ? TF_ES_READWRITE : TF_ES_READ), &result.session);
-        operation->Release();
         return result;
     }
 }

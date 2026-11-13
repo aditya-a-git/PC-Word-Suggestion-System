@@ -652,7 +652,7 @@ private:
     {
         HANDLE token = nullptr;
         if (!OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY, &token)) return false;
-        BYTE buffer[256]{};
+        alignas(TOKEN_MANDATORY_LABEL) BYTE buffer[256]{};
         DWORD size = 0;
         const bool read = GetTokenInformation(token, TokenIntegrityLevel, buffer, sizeof(buffer), &size) != FALSE;
         CloseHandle(token);
