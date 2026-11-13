@@ -77,6 +77,9 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw "Evaluation publish failed." }
           if (-not (Test-Path (Join-Path $publishDir "PCWord.Stage0.exe"))) { throw "Expected application executable was not published." }
           if (-not (Test-Path (Join-Path $publishDir "Dictionary\esdb-en-bilingual.tsv"))) { throw "Required dictionary asset is missing from the evaluation package." }
+          $expectedDictionaryHash = (Get-FileHash .\artifacts\dictionary\esdb-en-bilingual.tsv -Algorithm SHA256).Hash
+          $publishedDictionaryHash = (Get-FileHash (Join-Path $publishDir "Dictionary\esdb-en-bilingual.tsv") -Algorithm SHA256).Hash
+          if ($expectedDictionaryHash -ne $publishedDictionaryHash) { throw "Published dictionary differs from the audited asset." }
           @"
           PCWord controlled-editor evaluation build.
           This is not a production release and does not provide system-wide suggestions.

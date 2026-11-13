@@ -38,6 +38,14 @@ Concrete findings before edits:
 * No production pipe, native IPC client, authenticated deployment identity,
   system-wide prediction host, installer or interactive compatibility evidence.
 
+Additional findings during validation: the two projects declared identical
+dictionary assets for the same publish path, causing an MSB3026 file-lock retry
+in Windows CI. The redundant Stage0 content item was removed; the prediction
+project supplies the unchanged asset and CI verifies its published checksum.
+The native profile description also passed an unbounded unsigned `-1` length;
+registration now passes the actual fixed description length. Diagnostic markers
+are emitted atomically, with the activation wording matching the existing parser.
+
 Execution environment: Linux cloud workspace with a locally installed .NET 10
 SDK. Windows CI is available. A hosted Windows build does not demonstrate TSF
 activation in interactive Notepad. No Windows GUI measurements are invented.

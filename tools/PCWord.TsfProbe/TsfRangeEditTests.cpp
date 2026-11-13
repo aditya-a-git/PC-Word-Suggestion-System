@@ -14,7 +14,7 @@ struct Document
     std::wstring text = L"hello pcword world";
     std::vector<Range*> ranges;
     int writes = 0, reads = 0;
-    bool denyWrite = false, partialWrite = false, corruptNeighbor = false, denyRead = false;
+    bool denyWrite = false, partialWrite = false, corruptNeighbor = false, denyRead = false, noOpWrite = false;
 };
 
 class Range final : public ITfRange
@@ -54,6 +54,7 @@ public:
         if (cookie != Cookie) return TF_E_NOLOCK;
         ++doc.writes;
         if (doc.denyWrite) return TF_E_LOCKED;
+        if (doc.noOpWrite) return S_OK;
         const LONG start = first, end = last, delta = length - (end - start);
         doc.text.replace(static_cast<size_t>(start), static_cast<size_t>(end - start), text, length);
         for (auto* range : doc.ranges)
@@ -123,7 +124,7 @@ int main()
 {
     // Failures: policy/focus, selection, expected text, write lock, partial write,
     // neighboring corruption, failed selection, incorrect caret, read failure.
-    for (int failure = 0; failure <= 11; ++failure)
+    for (int failure = 0; failure <= 12; ++failure)
     {
         Document doc;
         {
@@ -139,6 +140,7 @@ int main()
             doc.partialWrite = failure == 5;
             doc.corruptNeighbor = failure == 6;
             doc.denyRead = failure == 9;
+            doc.noOpWrite = failure == 12;
             int eligibilityCalls = 0;
             RangeEdit edit(Cookie, captured.Get(), hash,
                 [&](ComPtr<ITfRange>& output) {
@@ -156,7 +158,7 @@ int main()
             const Result result = Apply(ticket, 1, 101, edit);
             REQUIRE(result == (failure == 0 ? Result::Verified :
                 failure <= 3 || failure == 9 ? Result::Rejected : Result::Uncertain));
-            const bool wrote = failure == 0 || (failure >= 4 && failure <= 8) || failure == 11;
+            const bool wrote = failure == 0 || (failure >= 4 && failure <= 8) || failure >= 11;
             REQUIRE(doc.writes == (wrote ? 1 : 0));
             if (failure == 0)
             {
