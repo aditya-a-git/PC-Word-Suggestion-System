@@ -18,6 +18,8 @@ validation, cancellation reentrancy and duplicate acceptance are hardened. The
 expanded managed suite passes 216 tests; native model/COM tests and Windows CI
 results are recorded in [testing](docs/testing.md).
 
+The [implementation report](docs/implementation-report.md) records exact source/CI revisions and remaining gates.
+
 For your Windows test, follow [the exact Notepad experiment procedure](docs/tsf-integration.md).
 See [architecture](docs/architecture.md), [compatibility](docs/application-compatibility.md),
 [security](docs/ipc-security.md), [limitations](docs/known-limitations.md), and

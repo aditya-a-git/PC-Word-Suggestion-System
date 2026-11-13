@@ -104,3 +104,13 @@ Run at least an eight-hour synthetic typing/acceptance/focus-switch soak and
 repeated install/upgrade/repair/uninstall with interruption/rollback cases. Record
 latency percentiles, CPU, memory, handles and threads against
 [performance.md](performance.md). None of those later gates is currently passed.
+
+### Final implementation validation
+
+[Run 43437527781](https://github.com/aditya-a-git/PC-Word-Suggestion-System/actions/runs/43437527781)
+passed for source head `1b6e098` (PR merge `2453484`): full managed Release build,
+216 managed tests, both native DLL builds, 5/5 native executables, Windows report
+script and evaluation package checksum. TRX/native XML evidence is retained for
+14 days; evaluation ZIP/DLL artifacts for seven days. The hosted image was Windows
+Server 2025 / `windows-2025-vs2026`; no interactive Notepad test ran. See the
+[implementation report](implementation-report.md) for exact SHAs and stage status.

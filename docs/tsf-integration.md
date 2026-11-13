@@ -94,6 +94,9 @@ $env:PCWORD_TSF_ALLOW_EDIT_EXPERIMENT = '1'
 Start-Process notepad.exe
 ```
 
+Downloaded native DLLs require the matching x64 Microsoft Visual C++ runtime,
+which is not bundled. A successful build does not verify a clean-machine load.
+
 Close existing Notepad instances first. Modern packaged Notepad may reuse a process
 that did not inherit these variables; absence of an activation/capture marker is a
 failed setup, not a passed test. Do not use machine-wide environment variables.
