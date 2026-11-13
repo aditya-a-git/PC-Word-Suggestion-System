@@ -46,16 +46,19 @@ namespace pcword::input
             return FieldClassification::Unknown;
 
         bool foundConcreteScope = false;
+        bool foundUnknownScope = false;
         for (std::size_t i = 0; i < count; ++i)
         {
             if (IsSensitiveScope(scopes[i]))
                 return FieldClassification::Sensitive;
+            // Never let an earlier unknown value mask a later password/PIN.
             if (!IsConcreteScope(scopes[i]))
-                return FieldClassification::Unknown;
-            foundConcreteScope = true;
+                foundUnknownScope = true;
+            else
+                foundConcreteScope = true;
         }
 
-        return foundConcreteScope
+        return foundConcreteScope && !foundUnknownScope
             ? FieldClassification::DeclaredNonSensitive
             : FieldClassification::Unknown;
     }

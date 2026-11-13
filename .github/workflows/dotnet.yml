@@ -43,7 +43,7 @@ jobs:
       - name: Build native TSF probe
         run: cmake --build .\tools\PCWord.TsfProbe\build-ci --config Release
 
-      - name: Run native policy tests
+      - name: Run native safety and edit-session tests
         run: ctest --test-dir .\tools\PCWord.TsfProbe\build-ci -C Release --output-on-failure
 
       - name: Publish controlled-editor evaluation build
@@ -75,6 +75,14 @@ jobs:
         with:
           name: PCWord-controlled-editor-evaluation-win-x64-${{ github.sha }}
           path: ${{ runner.temp }}\PCWord-controlled-editor-evaluation-win-x64.zip
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Publish synthetic TSF edit experiment
+        uses: actions/upload-artifact@v4
+        with:
+          name: experimental-PCWordTsfEditExperiment-win-x64-${{ github.sha }}
+          path: .\tools\PCWord.TsfProbe\build-ci\Release\PCWordTsfEditExperiment.dll
           if-no-files-found: error
           retention-days: 7
 
