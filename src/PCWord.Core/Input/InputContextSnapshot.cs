@@ -27,6 +27,38 @@ public sealed record InputContextSnapshot
         int? CaretOffset = null,
         long CaptureStartedTimestamp = 0)
     {
+        this.Version = Version;
+        this.FieldId = FieldId;
+        this.TextBeforeCaret = TextBeforeCaret;
+        this.TextAfterCaret = TextAfterCaret;
+        this.SelectionLength = SelectionLength;
+        this.HasFocus = HasFocus;
+        this.Sensitivity = Sensitivity;
+        this.IsComposing = IsComposing;
+        this.ContextAvailable = ContextAvailable;
+        this.CaretBounds = CaretBounds;
+        this.CaretOffset = CaretOffset;
+        this.CaptureStartedTimestamp = CaptureStartedTimestamp;
+        Validate();
+    }
+
+    public long Version { get; init; }
+    public string? FieldId { get; init; }
+    public string? TextBeforeCaret { get; init; }
+    public string? TextAfterCaret { get; init; }
+    public int SelectionLength { get; init; }
+    public bool HasFocus { get; init; }
+    public InputFieldSensitivity Sensitivity { get; init; }
+    public bool IsComposing { get; init; }
+    public bool ContextAvailable { get; init; }
+    public CaretScreenBounds? CaretBounds { get; init; }
+    public int? CaretOffset { get; init; }
+    /// <summary>Monotonic Stopwatch timestamp captured before adapter context acquisition; zero when unavailable.</summary>
+    public long CaptureStartedTimestamp { get; init; }
+
+    /// <summary>Revalidates records received from adapters, including copies made with init/with.</summary>
+    public void Validate()
+    {
         if (Version < 0)
             throw new ArgumentOutOfRangeException(nameof(Version));
         if (FieldId?.Length > MaximumFieldIdLength)
@@ -47,35 +79,11 @@ public sealed record InputContextSnapshot
             (bounds.Right <= bounds.Left || bounds.Bottom <= bounds.Top || bounds.Dpi <= 0))
             throw new ArgumentOutOfRangeException(nameof(CaretBounds));
 
-        this.Version = Version;
-        this.FieldId = FieldId;
-        this.TextBeforeCaret = TextBeforeCaret;
-        this.TextAfterCaret = TextAfterCaret;
-        this.SelectionLength = SelectionLength;
-        this.HasFocus = HasFocus;
-        this.Sensitivity = Sensitivity;
-        this.IsComposing = IsComposing;
-        this.ContextAvailable = ContextAvailable;
-        this.CaretBounds = CaretBounds;
-        this.CaretOffset = CaretOffset;
-        this.CaptureStartedTimestamp = CaptureStartedTimestamp;
+        if (!Enum.IsDefined(Sensitivity))
+            throw new ArgumentOutOfRangeException(nameof(Sensitivity));
     }
 
-    public long Version { get; init; }
-    public string? FieldId { get; init; }
-    public string? TextBeforeCaret { get; init; }
-    public string? TextAfterCaret { get; init; }
-    public int SelectionLength { get; init; }
-    public bool HasFocus { get; init; }
-    public InputFieldSensitivity Sensitivity { get; init; }
-    public bool IsComposing { get; init; }
-    public bool ContextAvailable { get; init; }
-    public CaretScreenBounds? CaretBounds { get; init; }
-    public int? CaretOffset { get; init; }
-    /// <summary>Monotonic Stopwatch timestamp captured before adapter context acquisition; zero when unavailable.</summary>
-    public long CaptureStartedTimestamp { get; init; }
-
-    private static bool IsWellFormed(string? value)
+    public static bool IsWellFormed(string? value)
     {
         if (value is null)
             return true;

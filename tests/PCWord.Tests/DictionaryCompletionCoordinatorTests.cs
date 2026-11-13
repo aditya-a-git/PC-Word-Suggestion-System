@@ -209,6 +209,60 @@ public sealed class DictionaryCompletionCoordinatorTests
         Assert.Equal(TextEditStatus.StaleContext, (await adapter.ApplyEditAsync(former)).Status);
     }
 
+    [Fact]
+    public async Task AcceptedCandidatesAreSingleUseEvenWithoutAnAdapterSnapshot()
+    {
+        var adapter = new FakeInputAdapter();
+        using var coordinator = new DictionaryCompletionCoordinator(adapter, CreateRanker());
+        adapter.Publish(Snapshot(1, "typed pro"));
+        Assert.True((await coordinator.AcceptAsync(0)).WasApplied);
+        Assert.Equal(TextEditStatus.Unsupported, (await coordinator.AcceptAsync(0)).Status);
+        Assert.Empty(adapter.Candidates);
+    }
+
+    [Fact]
+    public async Task ConcurrentAcceptanceIsRejectedAndOldCompletionPreservesNewCandidates()
+    {
+        var adapter = new FakeInputAdapter();
+        var pending = new TaskCompletionSource<TextEditResult>(TaskCreationOptions.RunContinuationsAsynchronously);
+        adapter.EditOverride = (_, _) => new ValueTask<TextEditResult>(pending.Task);
+        using var coordinator = new DictionaryCompletionCoordinator(adapter, CreateRanker());
+        adapter.Publish(Snapshot(1, "typed pro"));
+        var first = coordinator.AcceptAsync(0).AsTask();
+        Assert.Equal(TextEditStatus.Unsupported, (await coordinator.AcceptAsync(0)).Status);
+        adapter.Publish(Snapshot(2, "typed pre"));
+        pending.SetResult(new TextEditResult(TextEditStatus.Applied));
+        Assert.True((await first).WasApplied);
+        Assert.Equal(new[] { "prelude" }, adapter.Candidates);
+        Assert.Equal(1, adapter.EditCalls);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task AdapterFailuresClearAcceptanceWithoutRetry(bool cancelled)
+    {
+        var adapter = new FakeInputAdapter();
+        adapter.EditOverride = (_, _) => throw (cancelled ? new OperationCanceledException() : new IOException("provider"));
+        using var coordinator = new DictionaryCompletionCoordinator(adapter, CreateRanker());
+        adapter.Publish(Snapshot(1, "typed pro"));
+        Assert.Equal(cancelled ? TextEditStatus.Cancelled : TextEditStatus.Failed, (await coordinator.AcceptAsync(0)).Status);
+        Assert.Equal(TextEditStatus.Unsupported, (await coordinator.AcceptAsync(0)).Status);
+        Assert.Empty(adapter.Candidates);
+        Assert.Equal(1, adapter.EditCalls);
+    }
+
+    [Fact]
+    public void InvalidSnapshotCopyClearsPreviouslyVisibleCandidates()
+    {
+        var adapter = new FakeInputAdapter();
+        using var coordinator = new DictionaryCompletionCoordinator(adapter, CreateRanker());
+        adapter.Publish(Snapshot(1, "typed pro"));
+        adapter.Publish(Snapshot(2, "typed pro") with { TextBeforeCaret = new string('x', 129) });
+        Assert.Empty(adapter.Candidates);
+        Assert.Equal(2, coordinator.CurrentContext.Version);
+    }
+
     private static CandidateRanker CreateRanker() => new(new PrefixIndex(new[]
     {
         new DictionaryEntry("program", LegacyWeight: 40),
@@ -234,6 +288,8 @@ public sealed class DictionaryCompletionCoordinatorTests
     private sealed class FakeInputAdapter : IInputAdapter
     {
         private InputContextSnapshot? _snapshot;
+        public Func<TextEditRequest, CancellationToken, ValueTask<TextEditResult>>? EditOverride { get; set; }
+        public int EditCalls { get; private set; }
 
         public event EventHandler<InputContextChangedEventArgs>? ContextChanged;
         public bool Enabled { get; private set; } = true;
@@ -276,6 +332,8 @@ public sealed class DictionaryCompletionCoordinatorTests
             TextEditRequest request,
             CancellationToken cancellationToken = default)
         {
+            ++EditCalls;
+            if (EditOverride is not null) return EditOverride(request, cancellationToken);
             LastRequest = request;
             if (cancellationToken.IsCancellationRequested)
                 return ValueTask.FromResult(new TextEditResult(TextEditStatus.Cancelled));

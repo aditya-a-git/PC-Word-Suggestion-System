@@ -10,15 +10,39 @@
 #include <string>
 #include <vector>
 #include <cwchar>
+#include <wrl/client.h>
+#include <cstdint>
+#ifdef PCWORD_EDIT_EXPERIMENT
+#include "EditTransaction.h"
+#include "TsfEditSession.h"
+#include "TsfRangeEdit.h"
+#endif
 
 #pragma comment(lib, "ole32.lib")
 #pragma comment(lib, "advapi32.lib")
 
-// Stable identifiers for this experimental, per-user TSF text service.
+// Separate identities prevent the write experiment replacing a registered reader.
+#ifdef PCWORD_EDIT_EXPERIMENT
+static const CLSID CLSID_PCWordTsfProbe =
+{ 0x19792af1, 0x8d11, 0x4a63, { 0x98, 0x44, 0x1e, 0xef, 0x70, 0x24, 0x30, 0x51 } };
+static const GUID GUID_PCWordTsfProfile =
+{ 0x19792af2, 0x8d11, 0x4a63, { 0x98, 0x44, 0x1e, 0xef, 0x70, 0x24, 0x30, 0x51 } };
+static const GUID GUID_PCWordCaptureKey =
+{ 0x19792af3, 0x8d11, 0x4a63, { 0x98, 0x44, 0x1e, 0xef, 0x70, 0x24, 0x30, 0x51 } };
+static const GUID GUID_PCWordApplyKey =
+{ 0x19792af4, 0x8d11, 0x4a63, { 0x98, 0x44, 0x1e, 0xef, 0x70, 0x24, 0x30, 0x51 } };
+static const TF_PRESERVEDKEY kCaptureKey = { VK_F11, TF_MOD_CONTROL | TF_MOD_ALT | TF_MOD_SHIFT | TF_MOD_ON_KEYUP };
+static const TF_PRESERVEDKEY kApplyKey = { VK_F12, TF_MOD_CONTROL | TF_MOD_ALT | TF_MOD_SHIFT | TF_MOD_ON_KEYUP };
+static constexpr wchar_t kProfileDescription[] = L"PCWord Synthetic Edit Experiment";
+#else
+// Stable identifiers for the original diagnostic-only service.
 static const CLSID CLSID_PCWordTsfProbe =
 { 0x6f7c1d8a, 0x9a4d, 0x4b2a, { 0x9e, 0x0f, 0x1c, 0x8a, 0x7f, 0x4b, 0x2d, 0x61 } };
 static const GUID GUID_PCWordTsfProfile =
 { 0x0c3a11f4, 0x5f3b, 0x47a2, { 0x9e, 0x8d, 0x5a, 0x6f, 0x2d, 0x1c, 0x8b, 0x90 } };
+
+static constexpr wchar_t kProfileDescription[] = L"PCWord TSF Feasibility Probe";
+#endif
 
 // GUID_PROP_INPUTSCOPE is declared by inputscope.h but not exported by a
 // link library in the Windows SDK used by CI. Keep the documented GUID value
@@ -167,9 +191,9 @@ static void TraceEditEvent(bool selectionKnown, bool collapsedSelection,
 static void Trace(const wchar_t* message)
 {
     // Debug output contains status/metrics only. Never include text content.
-    OutputDebugStringW(L"[PCWord.TSF] ");
-    OutputDebugStringW(message);
-    OutputDebugStringW(L"\r\n");
+    wchar_t record[768]{};
+    if (swprintf_s(record, L"[PCWord.TSF] %s\r\n", message) > 0)
+        OutputDebugStringW(record);
 }
 
 static void TraceHr(const wchar_t* operation, HRESULT hr)
@@ -260,7 +284,7 @@ static HRESULT RegisterTsfProfile()
         constexpr LANGID kProfileLanguage = 0x0409;
         hr = profiles->AddLanguageProfile(CLSID_PCWordTsfProbe,
             kProfileLanguage, GUID_PCWordTsfProfile,
-            L"PCWord TSF Feasibility Probe", static_cast<UINT>(-1), nullptr, 0, 0);
+            kProfileDescription, static_cast<ULONG>(std::size(kProfileDescription) - 1), nullptr, 0, 0);
         TraceHr(L"ITfInputProcessorProfiles::AddLanguageProfile", hr);
         if (SUCCEEDED(hr))
         {
@@ -354,24 +378,17 @@ static HRESULT UnregisterTsfProfile()
 class TsfProbe final :
     public ITfTextInputProcessor,
     public ITfThreadMgrEventSink,
-    public ITfTextEditSink
+    public ITfTextEditSink,
+    public ITfThreadFocusSink
+#ifdef PCWORD_EDIT_EXPERIMENT
+    , public ITfKeyEventSink
+#endif
 {
 public:
     TsfProbe() { ++g_objects; }
     ~TsfProbe()
     {
-        DetachContext();
-        if (m_threadMgr && m_threadSinkCookie != TF_INVALID_COOKIE)
-        {
-            ITfSource* source = nullptr;
-            if (SUCCEEDED(m_threadMgr->QueryInterface(IID_ITfSource,
-                reinterpret_cast<void**>(&source))))
-            {
-                source->UnadviseSink(m_threadSinkCookie);
-                source->Release();
-            }
-        }
-        if (m_threadMgr) m_threadMgr->Release();
+        Deactivate();
         --g_objects;
     }
 
@@ -385,6 +402,12 @@ public:
             *object = static_cast<ITfThreadMgrEventSink*>(this);
         else if (riid == IID_ITfTextEditSink)
             *object = static_cast<ITfTextEditSink*>(this);
+        else if (riid == IID_ITfThreadFocusSink)
+            *object = static_cast<ITfThreadFocusSink*>(this);
+#ifdef PCWORD_EDIT_EXPERIMENT
+        else if (riid == IID_ITfKeyEventSink)
+            *object = static_cast<ITfKeyEventSink*>(this);
+#endif
         else
             return E_NOINTERFACE;
         AddRef();
@@ -427,12 +450,31 @@ public:
         m_threadMgr = threadMgr;
         m_clientId = clientId;
         m_threadSinkCookie = sinkCookie;
-        Trace(L"Text service activated; observing TSF focus/edit notifications only.");
+        Microsoft::WRL::ComPtr<ITfSource> focusSource;
+        hr = threadMgr->QueryInterface(IID_PPV_ARGS(&focusSource));
+        if (SUCCEEDED(hr)) hr = focusSource->AdviseSink(IID_ITfThreadFocusSink,
+            static_cast<ITfThreadFocusSink*>(this), &m_focusSinkCookie);
+#ifdef PCWORD_EDIT_EXPERIMENT
+        if (SUCCEEDED(hr)) hr = RegisterExperimentKeys();
+#endif
+        if (FAILED(hr)) { Deactivate(); return hr; }
+        RefreshFocusedContext();
+        Trace(L"Text service activated.");
         return S_OK;
     }
     STDMETHODIMP Deactivate() override
     {
+#ifdef PCWORD_EDIT_EXPERIMENT
+        UnregisterExperimentKeys();
+#endif
         DetachContext();
+        if (m_threadMgr && m_focusSinkCookie != TF_INVALID_COOKIE)
+        {
+            Microsoft::WRL::ComPtr<ITfSource> source;
+            if (SUCCEEDED(m_threadMgr->QueryInterface(IID_PPV_ARGS(&source))))
+                source->UnadviseSink(m_focusSinkCookie);
+            m_focusSinkCookie = TF_INVALID_COOKIE;
+        }
         if (m_threadMgr && m_threadSinkCookie != TF_INVALID_COOKIE)
         {
             ITfSource* source = nullptr;
@@ -450,7 +492,31 @@ public:
     }
 
     STDMETHODIMP OnInitDocumentMgr(ITfDocumentMgr*) override { return S_OK; }
-    STDMETHODIMP OnUninitDocumentMgr(ITfDocumentMgr*) override { return S_OK; }
+    STDMETHODIMP OnUninitDocumentMgr(ITfDocumentMgr*) override
+    { DetachContext(); return S_OK; }
+    STDMETHODIMP OnSetThreadFocus() override { RefreshFocusedContext(); return S_OK; }
+    STDMETHODIMP OnKillThreadFocus() override { DetachContext(); return S_OK; }
+#ifdef PCWORD_EDIT_EXPERIMENT
+    STDMETHODIMP OnSetFocus(BOOL foreground) override
+    { if (!foreground) InvalidateCapture(); return S_OK; }
+    STDMETHODIMP OnTestKeyDown(ITfContext*, WPARAM, LPARAM, BOOL* eaten) override
+    { if (!eaten) return E_POINTER; *eaten = FALSE; return S_OK; }
+    STDMETHODIMP OnTestKeyUp(ITfContext*, WPARAM, LPARAM, BOOL* eaten) override
+    { if (!eaten) return E_POINTER; *eaten = FALSE; return S_OK; }
+    STDMETHODIMP OnKeyDown(ITfContext*, WPARAM, LPARAM, BOOL* eaten) override
+    { if (!eaten) return E_POINTER; *eaten = FALSE; return S_OK; }
+    STDMETHODIMP OnKeyUp(ITfContext*, WPARAM, LPARAM, BOOL* eaten) override
+    { if (!eaten) return E_POINTER; *eaten = FALSE; return S_OK; }
+    STDMETHODIMP OnPreservedKey(ITfContext* context, REFGUID key, BOOL* eaten) override
+    {
+        if (!eaten) return E_POINTER;
+        *eaten = FALSE;
+        if ((key != GUID_PCWordCaptureKey && key != GUID_PCWordApplyKey) || !EditOptedIn()) return S_OK;
+        *eaten = TRUE;
+        RunExperiment(context, key == GUID_PCWordApplyKey);
+        return S_OK;
+    }
+#endif
 
     STDMETHODIMP OnSetFocus(ITfDocumentMgr* focused, ITfDocumentMgr*) override
     {
@@ -470,14 +536,14 @@ public:
 
     STDMETHODIMP OnPushContext(ITfContext* context) override
     {
-        AttachContext(context);
+        if (IsFocusedTopContext(context)) AttachContext(context);
         return S_OK;
     }
 
     STDMETHODIMP OnPopContext(ITfContext* context) override
     {
         if (context == m_context)
-            DetachContext();
+            RefreshFocusedContext();
         return S_OK;
     }
 
@@ -485,6 +551,15 @@ public:
         ITfEditRecord*) override
     {
         if (!context) return E_INVALIDARG;
+        InvalidateCapture();
+        // Context attachment alone is not proof of foreground/thread focus.
+        if (!HasCurrentFocus(context) || !IsOrdinaryIntegrity()) return S_OK;
+        try { return ObserveEdit(context, cookie); }
+        catch (...) { Trace(L"edit-event error=provider-failure"); return E_FAIL; }
+    }
+
+    HRESULT ObserveEdit(ITfContext* context, TfEditCookie cookie)
+    {
         ExternalSettings settings;
         const bool settingsValid = ReadExternalSettings(&settings);
         if (!settingsValid || !settings.enabled)
@@ -562,6 +637,66 @@ private:
     TfClientId m_clientId = TF_CLIENTID_NULL;
     DWORD m_threadSinkCookie = TF_INVALID_COOKIE;
     DWORD m_contextSinkCookie = TF_INVALID_COOKIE;
+    DWORD m_focusSinkCookie = TF_INVALID_COOKIE;
+    std::uint64_t m_generation = 0;
+
+    void InvalidateCapture()
+    {
+        ++m_generation;
+#ifdef PCWORD_EDIT_EXPERIMENT
+        ClearCapture();
+#endif
+    }
+
+    static bool IsOrdinaryIntegrity()
+    {
+        HANDLE token = nullptr;
+        if (!OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY, &token)) return false;
+        alignas(TOKEN_MANDATORY_LABEL) BYTE buffer[256]{};
+        DWORD size = 0;
+        const bool read = GetTokenInformation(token, TokenIntegrityLevel, buffer, sizeof(buffer), &size) != FALSE;
+        CloseHandle(token);
+        if (!read) return false;
+        const auto label = reinterpret_cast<const TOKEN_MANDATORY_LABEL*>(buffer);
+        if (!IsValidSid(label->Label.Sid)) return false;
+        const auto count = *GetSidSubAuthorityCount(label->Label.Sid);
+        if (!count) return false;
+        const DWORD level = *GetSidSubAuthority(label->Label.Sid, count - 1);
+        return level >= SECURITY_MANDATORY_MEDIUM_RID && level < SECURITY_MANDATORY_HIGH_RID;
+    }
+
+    bool IsFocusedTopContext(ITfContext* context)
+    {
+        if (!context || !m_threadMgr) return false;
+        Microsoft::WRL::ComPtr<ITfDocumentMgr> focused;
+        Microsoft::WRL::ComPtr<ITfContext> top;
+        Microsoft::WRL::ComPtr<IUnknown> expected, actual;
+        return m_threadMgr->GetFocus(&focused) == S_OK && focused &&
+            focused->GetTop(&top) == S_OK && top &&
+            context->QueryInterface(IID_PPV_ARGS(&expected)) == S_OK &&
+            top->QueryInterface(IID_PPV_ARGS(&actual)) == S_OK && expected.Get() == actual.Get();
+    }
+
+    bool HasCurrentFocus(ITfContext* context)
+    {
+        DWORD process = 0;
+        const DWORD thread = GetWindowThreadProcessId(GetForegroundWindow(), &process);
+        return context == m_context && thread == GetCurrentThreadId() &&
+            process == GetCurrentProcessId() && IsFocusedTopContext(context);
+    }
+
+    void RefreshFocusedContext()
+    {
+        DetachContext();
+        if (!m_threadMgr) return;
+        Microsoft::WRL::ComPtr<ITfDocumentMgr> focused;
+        Microsoft::WRL::ComPtr<ITfContext> top;
+        if (m_threadMgr->GetFocus(&focused) == S_OK && focused &&
+            focused->GetTop(&top) == S_OK && top) AttachContext(top.Get());
+    }
+#ifdef PCWORD_EDIT_EXPERIMENT
+#include "TsfEditExperiment.inl"
+#endif
 
     void AttachContext(ITfContext* context)
     {
@@ -594,6 +729,7 @@ private:
 
     void DetachContext()
     {
+        InvalidateCapture();
         if (!m_context) return;
         ITfSource* source = nullptr;
         if (SUCCEEDED(m_context->QueryInterface(IID_ITfSource,

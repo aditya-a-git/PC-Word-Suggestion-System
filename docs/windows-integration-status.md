@@ -1,5 +1,13 @@
 # Windows integration status
 
+> Current status (2026-11-13): the original diagnostic DLL remains read-only.
+> A separate opt-in synthetic edit experiment and safety regressions are now
+> implemented. See [tsf-integration.md](tsf-integration.md) and
+> [testing.md](testing.md) for the current implementation and evidence.
+> Older no-edit-session/build-pending statements below describe prior revisions.
+> Real external-app operation and production readiness remain unverified.
+
+
 ## Settings and privacy controls (partial)
 
 The controlled-editor executable now opens a dedicated Settings window backed by `UserSettingsService` and `JsonUserSettingsStore`. The persisted Enabled value is applied to the suggestion coordinator; disabling hides the popup and invalidates pending suggestion state. A service update is validated and saved before notification, and a failed save leaves the old runtime value in place.

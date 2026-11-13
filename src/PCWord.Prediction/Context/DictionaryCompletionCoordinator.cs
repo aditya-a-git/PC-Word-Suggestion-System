@@ -35,6 +35,7 @@ public sealed class DictionaryCompletionCoordinator : IDisposable
     private readonly NGramModel? _nextWordModel;
     private bool _enabled = true;
     private bool _disposed;
+    private int _accepting;
     private IReadOnlyList<string> _currentCandidates = Array.Empty<string>();
 
     public DictionaryCompletionCoordinator(
@@ -97,24 +98,45 @@ public sealed class DictionaryCompletionCoordinator : IDisposable
         CancellationToken cancellationToken = default)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
-        PredictionContext current = _contextManager.Current;
-        if (!_enabled || current.FieldId is null ||
-            candidateIndex < 0 || candidateIndex >= _currentCandidates.Count)
-        {
+        if (cancellationToken.IsCancellationRequested)
+            return new TextEditResult(TextEditStatus.Cancelled);
+        if (Interlocked.CompareExchange(ref _accepting, 1, 0) != 0)
             return new TextEditResult(TextEditStatus.Unsupported);
+
+        try
+        {
+            PredictionContext current = _contextManager.Current;
+            if (!_enabled || current.FieldId is null ||
+                candidateIndex < 0 || candidateIndex >= _currentCandidates.Count)
+                return new TextEditResult(TextEditStatus.Unsupported);
+
+            var request = new TextEditRequest(current.Version, current.FieldId,
+                current.Prefix, _currentCandidates[candidateIndex]);
+            // Consume in the coordinator before calling the adapter. Keep the
+            // adapter's set for its independent provenance check until it returns.
+            _currentCandidates = Array.Empty<string>();
+            TextEditResult result;
+            try
+            {
+                result = await _adapter.ApplyEditAsync(request, cancellationToken);
+            }
+            catch (OperationCanceledException)
+            {
+                result = new TextEditResult(TextEditStatus.Cancelled);
+            }
+            catch (Exception exception) when (exception is not OutOfMemoryException and not AccessViolationException)
+            {
+                result = new TextEditResult(TextEditStatus.Failed);
+            }
+            // An old completion must not dismiss candidates for a newer context.
+            // Even success requires a fresh snapshot before another acceptance.
+            if (IsCurrent(current.Version, current.FieldId)) Dismiss();
+            return result;
         }
-
-        string candidate = _currentCandidates[candidateIndex];
-        var request = new TextEditRequest(
-            current.Version,
-            current.FieldId,
-            current.Prefix,
-            candidate);
-
-        TextEditResult result = await _adapter.ApplyEditAsync(request, cancellationToken);
-        if (!result.WasApplied && IsCurrent(current.Version, current.FieldId))
-            Dismiss();
-        return result;
+        finally
+        {
+            Interlocked.Exchange(ref _accepting, 0);
+        }
     }
 
     public void Dispose()

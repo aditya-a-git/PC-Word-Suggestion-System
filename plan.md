@@ -1,5 +1,21 @@
 # Implementation Plan — Desktop Predictive Typing Assistant
 
+## Current production gate — 2026-11-13
+
+| Required stage | Status |
+|---|---|
+| 1. External TSF read/write feasibility | Separate synthetic edit experiment implemented; native/managed automated checks pass; real Notepad validation remains unverified |
+| 2. Production transport/authentication | Blocked on stage 1; existing protocol/state validation hardened, no pipe or peer authentication implemented |
+| 3. External prediction/popup vertical slice | Blocked on stages 1–2; existing prediction/UI preserved |
+| 4. Compatibility/reliability/packaging | Not verified; portable demo artifact exists, consumer installer does not |
+
+See [audit](docs/implementation-audit.md), [architecture](docs/architecture.md),
+[TSF procedure](docs/tsf-integration.md), [testing](docs/testing.md), and
+[next steps](next_steps.txt). The stage records below are historical and do not
+supersede this status. The supplied task requires real-host verification before
+advancing dependent production stages. No production-readiness claim is made.
+
+
 > **Platform:** Windows 11, initially  
 > **Primary objective:** Build a reliable, low-latency, privacy-preserving desktop typing assistant that provides up to three word-completion or next-word suggestions near the active caret.  
 > **Planning principle:** Prove input-integration feasibility before committing to the architecture. Keep prediction independent of Windows integration and UI. Treat compatibility as something to test and document—not assume.
