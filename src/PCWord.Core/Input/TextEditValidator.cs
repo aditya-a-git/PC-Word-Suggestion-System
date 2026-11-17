@@ -26,6 +26,9 @@ public static class TextEditValidator
         ArgumentNullException.ThrowIfNull(request);
         ArgumentNullException.ThrowIfNull(currentCandidates);
 
+        try { snapshot.Validate(); }
+        catch (ArgumentException) { return TextEditValidationResult.Refused(TextEditStatus.Unsupported); }
+
         if (snapshot.Sensitivity == InputFieldSensitivity.Sensitive)
             return TextEditValidationResult.Refused(TextEditStatus.RefusedSensitiveField);
 
@@ -44,7 +47,10 @@ public static class TextEditValidator
 
         if (request.ExpectedText is null || request.Replacement is null ||
             request.ExpectedText.Length > InputContextSnapshot.MaximumTextBeforeCaret ||
-            request.Replacement.Length > 256)
+            request.Replacement.Length > 256 ||
+            !InputContextSnapshot.IsWellFormed(request.ExpectedText) ||
+            !InputContextSnapshot.IsWellFormed(request.Replacement) ||
+            request.Replacement.Any(char.IsControl))
             return TextEditValidationResult.Refused(TextEditStatus.Unsupported);
 
         string expectedPrefix;

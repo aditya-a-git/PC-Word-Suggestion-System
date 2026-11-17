@@ -1,5 +1,13 @@
 # Production Windows integration architecture
 
+> Current status (2026-11-13): the original diagnostic DLL remains read-only.
+> A separate opt-in synthetic edit experiment and safety regressions are now
+> implemented. See [tsf-integration.md](tsf-integration.md) and
+> [testing.md](testing.md) for the current implementation and evidence.
+> Older no-edit-session/build-pending statements below describe prior revisions.
+> Real external-app operation and production readiness remain unverified.
+
+
 ## Status and evidence
 
 This document describes the intended boundaries and the managed protocol foundation currently implemented. It is **not** a claim that a production external-app adapter is functional.

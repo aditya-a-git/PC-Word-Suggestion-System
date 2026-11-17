@@ -1,5 +1,13 @@
 # PCWord TSF feasibility probe
 
+> Current status (2026-11-13): the original diagnostic DLL remains read-only.
+> A separate opt-in synthetic edit experiment and safety regressions are now
+> implemented. See [../../docs/tsf-integration.md](../../docs/tsf-integration.md) and
+> [../../docs/testing.md](../../docs/testing.md) for the current implementation and evidence.
+> Older no-edit-session/build-pending statements below describe prior revisions.
+> Real external-app operation and production readiness remain unverified.
+
+
 Experimental native C++ COM TSF text service for evaluating Windows Text Services Framework against the existing UI Automation probe. It is not production-ready.
 
 ## Obtain the CI build

@@ -7,6 +7,9 @@ on:
     branches: [main]
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
   build-and-test:
     runs-on: windows-latest
@@ -27,7 +30,7 @@ jobs:
         run: dotnet build .\PCWord.sln --configuration Release --no-restore
 
       - name: Run tests
-        run: dotnet test .\PCWord.sln --configuration Release --no-build --logger "console;verbosity=normal"
+        run: dotnet test .\PCWord.sln --configuration Release --no-build --logger "console;verbosity=normal" --logger "trx;LogFileName=managed.trx" --results-directory .\TestResults
 
       - name: Benchmark bundled bilingual dictionary
         shell: pwsh
@@ -43,8 +46,27 @@ jobs:
       - name: Build native TSF probe
         run: cmake --build .\tools\PCWord.TsfProbe\build-ci --config Release
 
-      - name: Run native policy tests
-        run: ctest --test-dir .\tools\PCWord.TsfProbe\build-ci -C Release --output-on-failure
+      - name: Run native safety and edit-session tests
+        run: ctest --test-dir .\tools\PCWord.TsfProbe\build-ci -C Release --output-on-failure --output-junit native-tests.xml
+
+      - name: Validate Windows environment report template
+        shell: pwsh
+        run: |
+          .\tools\validation\New-NotepadTestReport.ps1 -OutputPath .\TestResults\Notepad-not-run.json
+          $report = Get-Content .\TestResults\Notepad-not-run.json -Raw | ConvertFrom-Json
+          if ($report.verificationStatus -ne 'not-run' -or $report.cases.Count -ne 19) { throw 'Invalid report template.' }
+          if (@($report.cases | Where-Object result -ne 'not-run').Count -ne 0) { throw 'Template must not claim tests ran.' }
+
+      - name: Retain automated test evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: PCWord-test-evidence-${{ github.sha }}
+          path: |
+            TestResults/
+            tools/PCWord.TsfProbe/build-ci/native-tests.xml
+          if-no-files-found: warn
+          retention-days: 14
 
       - name: Publish controlled-editor evaluation build
         shell: pwsh
@@ -55,6 +77,9 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw "Evaluation publish failed." }
           if (-not (Test-Path (Join-Path $publishDir "PCWord.Stage0.exe"))) { throw "Expected application executable was not published." }
           if (-not (Test-Path (Join-Path $publishDir "Dictionary\esdb-en-bilingual.tsv"))) { throw "Required dictionary asset is missing from the evaluation package." }
+          $expectedDictionaryHash = (Get-FileHash .\artifacts\dictionary\esdb-en-bilingual.tsv -Algorithm SHA256).Hash
+          $publishedDictionaryHash = (Get-FileHash (Join-Path $publishDir "Dictionary\esdb-en-bilingual.tsv") -Algorithm SHA256).Hash
+          if ($expectedDictionaryHash -ne $publishedDictionaryHash) { throw "Published dictionary differs from the audited asset." }
           @"
           PCWord controlled-editor evaluation build.
           This is not a production release and does not provide system-wide suggestions.
@@ -75,6 +100,14 @@ jobs:
         with:
           name: PCWord-controlled-editor-evaluation-win-x64-${{ github.sha }}
           path: ${{ runner.temp }}\PCWord-controlled-editor-evaluation-win-x64.zip
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Publish synthetic TSF edit experiment
+        uses: actions/upload-artifact@v4
+        with:
+          name: experimental-PCWordTsfEditExperiment-win-x64-${{ github.sha }}
+          path: .\tools\PCWord.TsfProbe\build-ci\Release\PCWordTsfEditExperiment.dll
           if-no-files-found: error
           retention-days: 7
 

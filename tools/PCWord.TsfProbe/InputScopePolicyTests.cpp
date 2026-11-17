@@ -40,6 +40,12 @@ int main()
         REQUIRE(IsSensitiveScope(scope));
         const InputScope values[] = { IS_TEXT, scope };
         REQUIRE(ClassifyScopes(values, 2) == FieldClassification::Sensitive);
+        const InputScope unknownFirst[] = { IS_DEFAULT, scope };
+        REQUIRE(ClassifyScopes(unknownFirst, 2) == FieldClassification::Sensitive);
+        const InputScope sentinelFirst[] = { IS_PHRASELIST, scope, IS_TEXT };
+        REQUIRE(ClassifyScopes(sentinelFirst, 3) == FieldClassification::Sensitive);
+        const InputScope invalidFirst[] = { static_cast<InputScope>(99), scope };
+        REQUIRE(ClassifyScopes(invalidFirst, 2) == FieldClassification::Sensitive);
     }
     REQUIRE(!IsSensitiveScope(IS_TEXT));
     return 0;

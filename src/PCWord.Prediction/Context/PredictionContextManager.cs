@@ -59,8 +59,7 @@ public sealed class PredictionContextManager
         if (snapshot.Version <= _lastVersion)
             return false;
 
-        if (snapshot.SelectionLength < 0)
-            throw new ArgumentOutOfRangeException(nameof(snapshot), "Selection length cannot be negative.");
+        snapshot.Validate();
 
         _lastVersion = snapshot.Version;
 
